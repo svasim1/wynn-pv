@@ -1,0 +1,21 @@
+{
+	"username": "HiddenPlayer",
+	"online": false,
+	"server": null,
+	"uuid": "00000000-0000-0000-0000-000000000001",
+	"rank": "Player",
+	"supportRank": "vip",
+	"lastJoin": null,
+	"guild": null,
+	"firstJoin": "2020-01-01T00:00:00Z",
+	"playtime": null,
+	"globalData": null,
+	"characters": {},
+	"restrictions": {
+		"mainAccess": true,
+		"characterDataAccess": true,
+		"characterBuildAccess": true,
+		"onlineStatus": true,
+		"guildHistoryAccess": false
+	}
+}
