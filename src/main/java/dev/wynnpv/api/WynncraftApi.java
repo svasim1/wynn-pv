@@ -15,20 +15,24 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.util.Util;
 
 /**
- * Reads player profiles from the official Wynncraft API. Wynncraft caches player data for two
- * minutes, so profiles are kept that long here too and asking again sooner costs no request (the
- * API allows 50 requests a minute without a token).
+ * Reads from the official Wynncraft API. Wynncraft caches player data for two minutes and ability
+ * trees for ten, so answers are kept that long here too and asking again sooner costs no request
+ * (the API allows 50 player requests a minute without a token). Class ability trees only change
+ * with game updates and are kept until the game closes.
  */
 public final class WynncraftApi {
 	private static final String BASE = "https://api.wynncraft.com/v3/";
-	private static final long CACHE_MS = 2 * 60_000;
+	private static final long PROFILE_CACHE_MS = 2 * 60_000;
+	private static final long ABILITIES_CACHE_MS = 10 * 60_000;
 	private static final HttpClient CLIENT = HttpClient.newBuilder()
 		.connectTimeout(Duration.ofSeconds(10))
 		.build();
 
-	private record Cached(long time, CompletableFuture<PlayerProfile> profile) {}
+	private record Cached<T>(long time, CompletableFuture<T> value) {}
 
-	private static final Map<String, Cached> PROFILES = new ConcurrentHashMap<>();
+	private static final Map<String, Cached<PlayerProfile>> PROFILES = new ConcurrentHashMap<>();
+	private static final Map<String, Cached<AbilityTree>> ABILITIES = new ConcurrentHashMap<>();
+	private static final Map<String, CompletableFuture<String>> CLASS_TREES = new ConcurrentHashMap<>();
 
 	/** Why a lookup failed, worded for the player. */
 	public static final class LookupException extends RuntimeException {
@@ -41,40 +45,76 @@ public final class WynncraftApi {
 
 	/** Looks a player up by username or UUID; failures complete with a {@link LookupException}. */
 	public static CompletableFuture<PlayerProfile> player(String player) {
-		String key = player.toLowerCase(Locale.ROOT);
-		long now = Util.getMillis();
-		Cached cached = PROFILES.get(key);
-		if (cached != null && now - cached.time() < CACHE_MS && !cached.profile().isCompletedExceptionally()) {
-			return cached.profile();
-		}
-		CompletableFuture<PlayerProfile> profile = fetchPlayer(player);
-		PROFILES.put(key, new Cached(now, profile));
-		return profile;
+		return cached(PROFILES, player.toLowerCase(Locale.ROOT), PROFILE_CACHE_MS, () ->
+			get("player/" + encode(player) + "?fullResult", Map.of(
+				// Several players have had this name; asking by UUID picks one.
+				300, "More than one player has been called " + player + ". Try their UUID.",
+				404, "No Wynncraft player called " + player + "."))
+				.thenApply(PlayerProfile::parse));
 	}
 
-	private static CompletableFuture<PlayerProfile> fetchPlayer(String player) {
-		URI uri = URI.create(BASE + "player/" + URLEncoder.encode(player, StandardCharsets.UTF_8) + "?fullResult");
-		HttpRequest request = HttpRequest.newBuilder(uri)
+	/** A character's ability tree, laid out like in game; hidden trees fail with a {@link LookupException}. */
+	public static CompletableFuture<AbilityTree> abilities(String playerUuid, PlayerProfile.Character character) {
+		String className = character.treeName();
+		return cached(ABILITIES, character.uuid(), ABILITIES_CACHE_MS, () -> {
+			CompletableFuture<String> chosen = get("player/" + playerUuid + "/characters/" + character.uuid() + "/abilities",
+				Map.of(403, "This player hides their ability trees."));
+			CompletableFuture<String> map = classTree("ability/map/" + className);
+			CompletableFuture<String> tree = classTree("ability/tree/" + className);
+			return CompletableFuture.allOf(chosen, map, tree)
+				.thenApply(ignored -> AbilityTree.parse(map.join(), tree.join(), chosen.join()));
+		});
+	}
+
+	private static CompletableFuture<String> classTree(String path) {
+		CompletableFuture<String> tree = CLASS_TREES.computeIfAbsent(path, key -> get(key, Map.of()));
+		if (tree.isCompletedExceptionally()) {
+			CLASS_TREES.remove(path, tree);
+			return classTree(path);
+		}
+		return tree;
+	}
+
+	private static <T> CompletableFuture<T> cached(Map<String, Cached<T>> cache, String key, long maxAgeMs,
+		java.util.function.Supplier<CompletableFuture<T>> fetch) {
+		long now = Util.getMillis();
+		Cached<T> cached = cache.get(key);
+		if (cached != null && now - cached.time() < maxAgeMs && !cached.value().isCompletedExceptionally()) {
+			return cached.value();
+		}
+		CompletableFuture<T> value = fetch.get();
+		cache.put(key, new Cached<>(now, value));
+		return value;
+	}
+
+	/** GETs a path and returns the body of a 200 answer; other answers fail with a readable message. */
+	private static CompletableFuture<String> get(String path, Map<Integer, String> messages) {
+		HttpRequest request = HttpRequest.newBuilder(URI.create(BASE + path))
 			.timeout(Duration.ofSeconds(15))
 			.header("User-Agent", "wynnpv-mod")
 			.build();
 		return CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
 			.handle((response, error) -> {
 				if (error != null) {
-					WynnPv.LOGGER.warn("Looking up {} failed: {}", player, error.getMessage());
+					WynnPv.LOGGER.warn("Request for {} failed: {}", path, error.getMessage());
 					throw new LookupException("Could not reach the Wynncraft API.");
 				}
-				return switch (response.statusCode()) {
-					case 200 -> PlayerProfile.parse(response.body());
-					// Several players have had this name; asking by UUID picks one.
-					case 300 -> throw new LookupException("More than one player has been called " + player + ". Try their UUID.");
-					case 404 -> throw new LookupException("No Wynncraft player called " + player + ".");
-					case 429 -> throw new LookupException("Too many lookups, try again in a minute.");
-					default -> {
-						WynnPv.LOGGER.warn("Looking up {} failed with HTTP {}: {}", player, response.statusCode(), response.body());
-						throw new LookupException("The Wynncraft API answered with an error (" + response.statusCode() + ").");
-					}
-				};
+				int code = response.statusCode();
+				if (code == 200) {
+					return response.body();
+				}
+				if (messages.containsKey(code)) {
+					throw new LookupException(messages.get(code));
+				}
+				if (code == 429) {
+					throw new LookupException("Too many lookups, try again in a minute.");
+				}
+				WynnPv.LOGGER.warn("Request for {} failed with HTTP {}: {}", path, code, response.body());
+				throw new LookupException("The Wynncraft API answered with an error (" + code + ").");
 			});
+	}
+
+	private static String encode(String text) {
+		return URLEncoder.encode(text, StandardCharsets.UTF_8);
 	}
 }

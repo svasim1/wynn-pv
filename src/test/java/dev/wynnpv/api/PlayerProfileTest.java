@@ -37,7 +37,10 @@ class PlayerProfileTest {
 		assertEquals("Warrior", best.className());
 		assertEquals(101, best.level());
 		assertEquals(326, best.totalLevel());
-		assertEquals(9, best.completedQuests());
+		assertEquals(9, best.quests().size());
+		assertNotNull(best.skillPoints());
+		assertEquals(12, best.professions().size());
+		assertNotNull(best.dungeons());
 	}
 
 	/** Reskinned classes show the reskin name. */
@@ -45,6 +48,7 @@ class PlayerProfileTest {
 	void usesReskinName() throws IOException {
 		PlayerProfile profile = PlayerProfile.parse(fixture("player-public.json"));
 		assertTrue(profile.characters().stream().anyMatch(c -> c.className().equals("Ninja")));
+		assertTrue(profile.characters().stream().anyMatch(c -> c.className().equals("Dark Wizard")));
 	}
 
 	/** Hand-written to match the documented shape of a profile with everything hidden. */

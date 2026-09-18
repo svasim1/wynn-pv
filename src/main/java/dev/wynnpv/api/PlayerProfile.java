@@ -1,10 +1,12 @@
 package dev.wynnpv.api;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -36,15 +38,35 @@ public record PlayerProfile(
 	public record Global(int totalLevel, int completedQuests, int dungeons, int raids, int wars,
 		int mobsKilled, int chestsFound, int worldEvents, int lootruns, int caves) {}
 
+	/**
+	 * One character. Stats the player removed from their character page are missing from
+	 * {@link #stats}; build data (skill points) is null when hidden by an access rule.
+	 */
 	public record Character(String uuid, String type, @Nullable String reskin, @Nullable String nickname,
-		int level, int totalLevel, List<String> gamemodes, @Nullable Double playtimeHours, @Nullable Integer deaths,
-		@Nullable Integer completedQuests) {
+		int level, int xpPercent, int totalLevel, List<String> gamemodes, @Nullable Double playtimeHours,
+		Map<String, Integer> stats, @Nullable Map<String, Integer> skillPoints, Map<String, Profession> professions,
+		@Nullable Map<String, Integer> dungeons, @Nullable Map<String, Integer> raids, @Nullable List<String> quests) {
 
 		/** The class as players call it, e.g. "Ninja" for a reskinned Assassin. */
 		public String className() {
 			return capitalize(reskin != null ? reskin : type);
 		}
+
+		/** The class the ability tree belongs to, e.g. "assassin" for a Ninja. */
+		public String treeName() {
+			return type.toLowerCase(java.util.Locale.ROOT);
+		}
+
+		public @Nullable Integer stat(String key) {
+			return stats.get(key);
+		}
 	}
+
+	public record Profession(int level, int xpPercent) {}
+
+	/** Plain number stats of a character, in the order they are shown. */
+	public static final List<String> CHARACTER_STATS = List.of("contentCompletion", "mobsKilled", "chestsFound",
+		"discoveries", "deaths", "logins", "wars", "worldEvents", "lootruns", "caves", "itemsIdentified");
 
 	/** True when the player hides the field group behind this access rule, e.g. "characterDataAccess". */
 	public boolean restricted(String rule) {
@@ -102,18 +124,71 @@ public record PlayerProfile(
 			if (!(entry.getValue() instanceof JsonObject c)) {
 				continue;
 			}
-			List<String> gamemodes = new ArrayList<>();
-			if (c.get("gamemode") != null && c.get("gamemode").isJsonArray()) {
-				c.getAsJsonArray("gamemode").forEach(mode -> gamemodes.add(mode.getAsString()));
-			}
-			Integer quests = c.get("quests") != null && c.get("quests").isJsonArray() ? c.getAsJsonArray("quests").size() : null;
-			result.add(new Character(entry.getKey(), text(c, "type"), text(c, "reskin"), text(c, "nickname"),
-				integer(c, "level", 0), integer(c, "totalLevel", 0), List.copyOf(gamemodes), decimal(c, "playtime"),
-				c.has("deaths") && !c.get("deaths").isJsonNull() ? c.get("deaths").getAsInt() : null, quests));
+			result.add(parseCharacter(entry.getKey(), c));
 		}
 		// Highest total level first, like the in-game character selector sorts by progress.
 		result.sort(Comparator.comparingInt(Character::totalLevel).reversed());
 		return List.copyOf(result);
+	}
+
+	private static Character parseCharacter(String uuid, JsonObject c) {
+		Map<String, Integer> stats = new LinkedHashMap<>();
+		for (String key : CHARACTER_STATS) {
+			if (c.get(key) != null && c.get(key).isJsonPrimitive()) {
+				stats.put(key, c.get(key).getAsInt());
+			}
+		}
+		JsonObject pvp = object(c, "pvp");
+		if (pvp != null) {
+			stats.put("pvpKills", integer(pvp, "kills", 0));
+			stats.put("pvpDeaths", integer(pvp, "deaths", 0));
+		}
+
+		Map<String, Profession> professions = new LinkedHashMap<>();
+		JsonObject professionData = object(c, "professions");
+		if (professionData != null) {
+			for (Map.Entry<String, JsonElement> entry : professionData.entrySet()) {
+				if (entry.getValue() instanceof JsonObject profession) {
+					professions.put(entry.getKey(), new Profession(integer(profession, "level", 1), integer(profession, "xpPercent", 0)));
+				}
+			}
+		}
+
+		List<String> quests = null;
+		if (c.get("quests") instanceof JsonArray array) {
+			quests = new ArrayList<>();
+			for (JsonElement quest : array) {
+				quests.add(quest.getAsString());
+			}
+			quests = List.copyOf(quests);
+		}
+
+		return new Character(uuid, text(c, "type"), text(c, "reskin"), text(c, "nickname"),
+			integer(c, "level", 0), integer(c, "xpPercent", 0), integer(c, "totalLevel", 0), strings(c.get("gamemode")),
+			decimal(c, "playtime"), Map.copyOf(stats), counts(object(c, "skillPoints")), Map.copyOf(professions),
+			listCounts(object(c, "dungeons")), listCounts(object(c, "raids")), quests);
+	}
+
+	private static List<String> strings(@Nullable JsonElement element) {
+		List<String> result = new ArrayList<>();
+		if (element instanceof JsonArray array) {
+			array.forEach(value -> result.add(value.getAsString()));
+		}
+		return List.copyOf(result);
+	}
+
+	private static @Nullable Map<String, Integer> counts(@Nullable JsonObject obj) {
+		if (obj == null) {
+			return null;
+		}
+		Map<String, Integer> result = new LinkedHashMap<>();
+		obj.entrySet().forEach(e -> result.put(e.getKey(), e.getValue().getAsInt()));
+		return result;
+	}
+
+	/** Dungeons and raids per character: {@code {"total": n, "list": {"name": count}}}. */
+	private static @Nullable Map<String, Integer> listCounts(@Nullable JsonObject obj) {
+		return obj == null ? null : counts(object(obj, "list"));
 	}
 
 	private static Map<String, Boolean> parseRestrictions(@Nullable JsonObject restrictions) {
@@ -124,8 +199,15 @@ public record PlayerProfile(
 		return result;
 	}
 
+	// Reskinned classes whose API name is not just the name in capitals.
+	private static final Map<String, String> CLASS_NAMES = Map.of("DARKWIZARD", "Dark Wizard");
+
 	static String capitalize(String text) {
-		return text.isEmpty() ? text : text.charAt(0) + text.substring(1).toLowerCase(java.util.Locale.ROOT);
+		String known = CLASS_NAMES.get(text);
+		if (known != null) {
+			return known;
+		}
+		return text.isEmpty() ? text : java.lang.Character.toUpperCase(text.charAt(0)) + text.substring(1).toLowerCase(java.util.Locale.ROOT);
 	}
 
 	private static @Nullable JsonObject object(JsonObject obj, String key) {

@@ -8,6 +8,7 @@ import java.util.concurrent.CompletionException;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -20,6 +21,7 @@ public final class ProfileScreen extends Screen {
 	private static final int LABEL = 0xFFA0A8B0;
 	private static final int VALUE = 0xFFFFFFFF;
 	private static final int ERROR = 0xFFFF6B6B;
+	private static final int HOVER = 0x30FFFFFF;
 	private static final int ROW_HEIGHT = 24;
 	private static final NumberFormat NUMBERS = NumberFormat.getIntegerInstance(Locale.ROOT);
 
@@ -27,13 +29,19 @@ public final class ProfileScreen extends Screen {
 	private @Nullable PlayerProfile profile;
 	private @Nullable String error;
 	private double scroll;
+	private int listLeft;
+	private int listTop;
+	private int listWidth;
 
 	public ProfileScreen(String player) {
 		super(Component.translatable("wynnpv.profile"));
 		this.query = player;
 		WynncraftApi.player(player).whenComplete((result, failure) -> minecraft().execute(() -> {
 			if (failure != null) {
-				Throwable cause = failure instanceof CompletionException && failure.getCause() != null ? failure.getCause() : failure;
+				Throwable cause = failure;
+				while (cause instanceof CompletionException && cause.getCause() != null) {
+					cause = cause.getCause();
+				}
 				error = cause instanceof WynncraftApi.LookupException ? cause.getMessage() : "Could not load " + player + ".";
 			} else {
 				profile = result;
@@ -43,6 +51,11 @@ public final class ProfileScreen extends Screen {
 
 	private static net.minecraft.client.Minecraft minecraft() {
 		return net.minecraft.client.Minecraft.getInstance();
+	}
+
+	/** The loaded profile, or null while loading or after an error. */
+	public @Nullable PlayerProfile profile() {
+		return profile;
 	}
 
 	@Override
@@ -68,7 +81,7 @@ public final class ProfileScreen extends Screen {
 		int left = width / 2 - columnWidth - 5;
 		int right = width / 2 + 5;
 		renderOverview(graphics, profile, left, 34);
-		renderCharacters(graphics, profile, right, 34, columnWidth);
+		renderCharacters(graphics, profile, right, 34, columnWidth, mouseX, mouseY);
 	}
 
 	private static String title(PlayerProfile profile) {
@@ -112,7 +125,7 @@ public final class ProfileScreen extends Screen {
 		row(graphics, x, y, "Chests found", NUMBERS.format(global.chestsFound()));
 	}
 
-	private void renderCharacters(GuiGraphics graphics, PlayerProfile profile, int x, int y, int width) {
+	private void renderCharacters(GuiGraphics graphics, PlayerProfile profile, int x, int y, int width, int mouseX, int mouseY) {
 		graphics.drawString(font, "Characters (" + profile.characters().size() + ")", x, y, HEADER);
 		y += 14;
 		if (profile.restricted("characterListAccess") || profile.restricted("characterDataAccess")) {
@@ -120,25 +133,49 @@ public final class ProfileScreen extends Screen {
 			return;
 		}
 		int bottom = height - 36;
+		listLeft = x;
+		listTop = y;
+		listWidth = width;
 		scroll = Mth.clamp(scroll, 0, Math.max(0, profile.characters().size() * ROW_HEIGHT - (bottom - y)));
-		graphics.enableScissor(x, y, x + width, bottom);
+		graphics.enableScissor(x - 2, y, x + width + 2, bottom);
 		int rowY = y - (int) scroll;
 		for (PlayerProfile.Character character : profile.characters()) {
 			if (rowY + ROW_HEIGHT > y && rowY < bottom) {
+				if (character == characterAt(mouseX, mouseY)) {
+					graphics.fill(x - 2, rowY - 2, x + width + 2, rowY + ROW_HEIGHT - 2, HOVER);
+				}
 				String name = character.className() + (character.nickname() != null ? " \"" + character.nickname() + "\"" : "");
 				graphics.drawString(font, name, x, rowY, VALUE);
 				String level = "Lv. " + character.level();
 				graphics.drawString(font, level, x + width - font.width(level), rowY, VALUE);
 				StringBuilder details = new StringBuilder("Total level " + character.totalLevel());
-				if (character.completedQuests() != null) {
-					details.append(", ").append(character.completedQuests()).append(" quests");
+				if (character.quests() != null) {
+					details.append(", ").append(character.quests().size()).append(" quests");
 				}
 				character.gamemodes().forEach(mode -> details.append(", ").append(capitalize(mode)));
-				graphics.drawString(font, details.toString(), x, rowY + 10, LABEL);
+				graphics.drawString(font, font.plainSubstrByWidth(details.toString(), width), x, rowY + 10, LABEL);
 			}
 			rowY += ROW_HEIGHT;
 		}
 		graphics.disableScissor();
+	}
+
+	private PlayerProfile.@Nullable Character characterAt(double mouseX, double mouseY) {
+		if (profile == null || mouseX < listLeft - 2 || mouseX > listLeft + listWidth + 2 || mouseY < listTop || mouseY >= height - 36) {
+			return null;
+		}
+		int index = (int) Math.floor((mouseY - listTop + scroll + 2) / ROW_HEIGHT);
+		return index >= 0 && index < profile.characters().size() ? profile.characters().get(index) : null;
+	}
+
+	@Override
+	public boolean mouseClicked(MouseButtonEvent event, boolean isDoubleClick) {
+		PlayerProfile.Character character = characterAt(event.x(), event.y());
+		if (character != null && profile != null) {
+			minecraft.setScreen(new CharacterScreen(this, profile, character));
+			return true;
+		}
+		return super.mouseClicked(event, isDoubleClick);
 	}
 
 	private int row(GuiGraphics graphics, int x, int y, String label, String value) {
@@ -158,7 +195,7 @@ public final class ProfileScreen extends Screen {
 
 	private static String capitalize(String text) {
 		String spaced = text.replace('_', ' ');
-		return spaced.isEmpty() ? spaced : spaced.charAt(0) + spaced.substring(1).toLowerCase(Locale.ROOT);
+		return spaced.isEmpty() ? spaced : java.lang.Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1).toLowerCase(Locale.ROOT);
 	}
 
 	@Override
