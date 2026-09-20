@@ -43,6 +43,18 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 21
 }
 
+// Client game tests drive a real client: `./gradlew runClientGameTest` opens the screens against
+// the live API and saves screenshots to build/run/clientGameTest/screenshots.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "wynnpv-gametest"
+		eula = true
+		enableGameTests = false
+		enableClientGameTests = true
+	}
+}
+
 // Unit tests parse saved API responses; they don't start the game.
 test {
 	useJUnitPlatform()

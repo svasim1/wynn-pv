@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "wynnpv-gametest",
+	"version": "1.0.0",
+	"name": "Wynn PV game tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"dev.wynnpv.gametest.ProfileScreenGameTest"
+		]
+	},
+	"depends": {
+		"wynnpv": "*"
+	}
+}
