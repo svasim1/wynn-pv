@@ -1,94 +1,94 @@
 package dev.wynnpv.ui;
 
 import dev.wynnpv.api.AbilityTree;
+import dev.wynnpv.ui.book.Ink;
+import dev.wynnpv.ui.book.Page;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Mth;
 
 /**
- * Draws an ability tree like the in-game one, all pages below each other: taken abilities and the
- * paths between them are lit, the rest is dimmed. Hovering an ability shows its description.
+ * Draws an ability tree onto a page, inked like the in-game one with all pages below each other:
+ * taken abilities are coloured in and their paths inked; the rest are only sketched. Hovering an
+ * ability shows its description.
  */
 final class AbilityTreeView {
-	private static final int CELL = 18;
-	private static final int PAGE_GAP = 12;
-	private static final int PATH_TAKEN = 0xFFF2F2F2;
-	private static final int PATH = 0xFF4A4F57;
-	private static final int NODE_EMPTY = 0xFF1C1F24;
-	private static final int LABEL = 0xFFA0A8B0;
+	private static final int MAX_CELL = 18;
+	private static final int PAGE_GAP = 14;
+	private static final int PATH_TAKEN = Ink.TEXT;
+	private static final int PATH = 0xFFCDB487;
+	private static final int OUTLINE = 0xFF2A1A0C;
+	private static final int PARCHMENT = 0xFFEDDBB2;
 
 	private final AbilityTree tree;
-	private double scroll;
 
 	AbilityTreeView(AbilityTree tree) {
 		this.tree = tree;
 	}
 
-	static int width() {
-		return AbilityTree.COLUMNS * CELL;
+	AbilityTree tree() {
+		return tree;
 	}
 
 	private int pages() {
 		return (tree.rows() - 1) / AbilityTree.ROWS_PER_PAGE + 1;
 	}
 
-	private int contentHeight() {
-		return tree.rows() * CELL + pages() * PAGE_GAP;
-	}
+	/** Cell size in GUI pixels, set per frame so the tree's 9 columns fit the page. */
+	private int cell = MAX_CELL;
 
 	/** Top of a grid row (1-based, counted over all pages) relative to the top of the tree. */
-	private static int rowTop(int row) {
+	private int rowTop(int row) {
 		int page = (row - 1) / AbilityTree.ROWS_PER_PAGE;
-		return (page + 1) * PAGE_GAP + (row - 1) * CELL;
+		return (page + 1) * PAGE_GAP + (row - 1) * cell;
 	}
 
-	void scroll(double amount, int height) {
-		scroll = Mth.clamp(scroll - amount * CELL * 2, 0, Math.max(0, contentHeight() - height));
-	}
-
-	void render(GuiGraphics graphics, Font font, int left, int top, int height, int mouseX, int mouseY) {
-		scroll = Mth.clamp(scroll, 0, Math.max(0, contentHeight() - height));
-		graphics.enableScissor(left - 60, top, left + width() + 4, top + height);
-		int originY = top - (int) scroll;
-		for (int page = 1; page <= pages(); page++) {
-			int labelY = originY + rowTop((page - 1) * AbilityTree.ROWS_PER_PAGE + 1) - PAGE_GAP + 2;
-			String label = "Page " + page;
-			graphics.drawString(font, label, left - font.width(label) - 8, labelY + PAGE_GAP / 2, LABEL);
-		}
-
-		AbilityTree.Node hovered = null;
-		// Paths first so abilities are drawn over their ends.
+	/** Draws the tree at the page's cursor, centred, and moves the cursor below it. */
+	void render(Page page) {
+		GuiGraphics graphics = page.graphics;
+		// Even sizes keep the 2 pixel paths centred in their cells.
+		cell = Math.min(MAX_CELL, page.width / AbilityTree.COLUMNS) & ~1;
+		int width = AbilityTree.COLUMNS * cell;
+		int left = page.left + (page.width - width) / 2;
+		int top = page.y;
 		for (AbilityTree.Node node : tree.nodes()) {
 			if (!node.ability()) {
-				drawConnector(graphics, node, left, originY);
+				drawConnector(graphics, node, left, top);
 			}
 		}
+		// Page numbers sit on a patch of clean parchment over the paths running past them.
+		for (int p = 1; p <= pages(); p++) {
+			int labelY = top + rowTop((p - 1) * AbilityTree.ROWS_PER_PAGE + 1) - PAGE_GAP + 3;
+			String label = "Page " + p;
+			int labelX = page.left + (page.width - page.font.width(label)) / 2;
+			if (page.fullyVisible(labelY, 8)) {
+				graphics.fill(labelX - 3, labelY - 2, labelX + page.font.width(label) + 3, labelY + 9, PARCHMENT);
+			}
+			page.text(label, labelX, labelY, Ink.FADED);
+		}
+		AbilityTree.Node hovered = null;
 		for (AbilityTree.Node node : tree.nodes()) {
 			if (node.ability()) {
-				int x = left + (node.cell().x() - 1) * CELL;
-				int y = originY + rowTop(node.cell().y());
+				int x = left + (node.cell().x() - 1) * cell;
+				int y = top + rowTop(node.cell().y());
 				drawAbility(graphics, node, x, y);
-				if (mouseX >= x && mouseX < x + CELL && mouseY >= y && mouseY < y + CELL
-					&& mouseY >= top && mouseY < top + height) {
+				if (page.isMouseOver(x, y, x + cell, y + cell)) {
 					hovered = node;
 				}
 			}
 		}
-		graphics.disableScissor();
-
 		if (hovered != null) {
-			graphics.setComponentTooltipForNextFrame(font, tooltip(hovered), mouseX, mouseY);
+			graphics.setComponentTooltipForNextFrame(page.font, tooltip(hovered), page.mouseX(), page.mouseY(), Ink.TOOLTIP);
 		}
+		page.gap(rowTop(tree.rows()) + cell);
 	}
 
-	private void drawConnector(GuiGraphics graphics, AbilityTree.Node node, int left, int originY) {
-		int x = left + (node.cell().x() - 1) * CELL;
-		int y = originY + rowTop(node.cell().y());
-		int cx = x + CELL / 2;
-		int cy = y + CELL / 2;
+	private void drawConnector(GuiGraphics graphics, AbilityTree.Node node, int left, int top) {
+		int x = left + (node.cell().x() - 1) * cell;
+		int y = top + rowTop(node.cell().y());
+		int cx = x + cell / 2;
+		int cy = y + cell / 2;
 		// A path leaving the last row of a page runs on through the gap to the next page.
 		boolean lastRowOfPage = node.cell().y() % AbilityTree.ROWS_PER_PAGE == 0;
 		for (AbilityTree.Direction direction : AbilityTree.Direction.values()) {
@@ -98,43 +98,43 @@ final class AbilityTreeView {
 			int color = tree.isTakenTowards(node, direction) ? PATH_TAKEN : PATH;
 			switch (direction) {
 				case UP -> graphics.fill(cx - 1, y, cx + 1, cy + 1, color);
-				case DOWN -> graphics.fill(cx - 1, cy - 1, cx + 1, y + CELL + (lastRowOfPage ? PAGE_GAP : 0), color);
+				case DOWN -> graphics.fill(cx - 1, cy - 1, cx + 1, y + cell + (lastRowOfPage ? PAGE_GAP : 0), color);
 				case LEFT -> graphics.fill(x, cy - 1, cx + 1, cy + 1, color);
-				case RIGHT -> graphics.fill(cx - 1, cy - 1, x + CELL, cy + 1, color);
+				case RIGHT -> graphics.fill(cx - 1, cy - 1, x + cell, cy + 1, color);
 			}
 		}
 	}
 
 	private void drawAbility(GuiGraphics graphics, AbilityTree.Node node, int x, int y) {
 		boolean ultimate = node.style().startsWith("ultimate");
-		int size = ultimate ? 16 : 12;
-		int x0 = x + (CELL - size) / 2;
-		int y0 = y + (CELL - size) / 2;
+		int size = cell - (ultimate ? 4 : 6);
+		int x0 = x + (cell - size) / 2;
+		int y0 = y + (cell - size) / 2;
 		int color = color(node.style());
 		if (tree.isTaken(node)) {
-			graphics.fill(x0 - 1, y0 - 1, x0 + size + 1, y0 + size + 1, 0xFFFFFFFF);
-			graphics.fill(x0, y0, x0 + size, y0 + size, color);
+			graphics.fill(x0, y0, x0 + size, y0 + size, OUTLINE);
+			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + size - 1, color);
+			// Light from the top left.
+			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + 2, 0x60FFFFFF);
+			graphics.fill(x0 + 1, y0 + size - 2, x0 + size - 1, y0 + size - 1, 0x40000000);
 		} else {
-			graphics.fill(x0, y0, x0 + size, y0 + size, dim(color));
-			graphics.fill(x0 + 2, y0 + 2, x0 + size - 2, y0 + size - 2, NODE_EMPTY);
+			graphics.fill(x0, y0, x0 + size, y0 + size, PATH);
+			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + size - 1, 0xFFEADAB4);
+			graphics.fill(x0 + 3, y0 + 3, x0 + size - 3, y0 + size - 3, net.minecraft.util.ARGB.multiplyAlpha(color, 0.35f));
 		}
 	}
 
 	/** Matches the colours of Wynncraft's node icons: white, yellow, purple, blue and red tiers. */
 	private static int color(String style) {
 		return switch (style) {
-			case "nodeWhite" -> 0xFFE4E4E4;
-			case "nodeYellow" -> 0xFFF2CF4A;
-			case "nodePurple" -> 0xFFB66BEA;
-			case "nodeBlue" -> 0xFF5BA4F2;
-			case "nodeRed" -> 0xFFE85B5B;
+			case "nodeWhite" -> 0xFFF4F0E6;
+			case "nodeYellow" -> 0xFFE8BE3A;
+			case "nodePurple" -> 0xFFA45ED8;
+			case "nodeBlue" -> 0xFF4C92E0;
+			case "nodeRed" -> 0xFFD84A4A;
 			// Ultimates, archetype starts and the class's own spells.
-			default -> style.startsWith("ultimate") ? 0xFFFFAA00 : 0xFF6FD08C;
+			default -> style.startsWith("ultimate") ? 0xFFFF9A1A : 0xFF5EBE7A;
 		};
-	}
-
-	private static int dim(int color) {
-		return 0xFF000000 | ((color >> 1) & 0x7F7F7F);
 	}
 
 	private List<Component> tooltip(AbilityTree.Node node) {

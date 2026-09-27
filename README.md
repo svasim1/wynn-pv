@@ -1,6 +1,6 @@
 # Wynn PV
 
-Look up any Wynncraft player's profile without leaving the game.
+Look up any Wynncraft player's profile without leaving the game, written up like an old tome.
 
 - Type **/pv &lt;player&gt;** to open their profile, or just **/pv** for your own.
 - See their rank, guild, playtime, when they joined and when they were last online.
@@ -18,6 +18,10 @@ Wynn PV only downloads; it doesn't send anything about you or your game. Profile
 [Wynncraft API](https://docs.wynncraft.com) (`api.wynncraft.com`), which allows 50 lookups a
 minute, so a profile is reused for two minutes before it is asked for again, and an ability tree
 for ten.
+
+## Art
+The book is pixel art drawn by `art/pixelart.py`; run `python3 art/pixelart.py --preview` to
+regenerate the textures and see enlarged previews in `art/preview/`.
 
 ## License
 LGPL-3.0, see [LICENSE](LICENSE). To build it yourself, run `./gradlew build` (needs Java 25).

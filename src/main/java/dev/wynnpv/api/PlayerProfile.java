@@ -35,8 +35,9 @@ public record PlayerProfile(
 	public record Guild(String name, String prefix, @Nullable String rank) {}
 
 	/** Totals over all characters ({@code globalData}). */
-	public record Global(int totalLevel, int completedQuests, int dungeons, int raids, int wars,
-		int mobsKilled, int chestsFound, int worldEvents, int lootruns, int caves) {}
+	public record Global(int totalLevel, int completedQuests, int contentCompletion, int dungeons, int raids,
+		int guildRaids, int wars, int mobsKilled, int chestsFound, int worldEvents, int lootruns, int caves,
+		int pvpKills, int pvpDeaths, Map<String, Integer> dungeonList, Map<String, Integer> raidList) {}
 
 	/**
 	 * One character. Stats the player removed from their character page are missing from
@@ -102,17 +103,26 @@ public record PlayerProfile(
 		if (global == null) {
 			return null;
 		}
+		JsonObject pvp = object(global, "pvp");
+		Map<String, Integer> dungeons = listCounts(object(global, "dungeons"));
+		Map<String, Integer> raids = listCounts(object(global, "raids"));
 		return new Global(
 			integer(global, "totalLevel", 0),
 			integer(global, "completedQuests", 0),
+			integer(global, "contentCompletion", 0),
 			total(global, "dungeons"),
 			total(global, "raids"),
+			total(global, "guildRaids"),
 			integer(global, "wars", 0),
 			integer(global, "mobsKilled", 0),
 			integer(global, "chestsFound", 0),
 			integer(global, "worldEvents", 0),
 			integer(global, "lootruns", 0),
-			integer(global, "caves", 0));
+			integer(global, "caves", 0),
+			pvp == null ? 0 : integer(pvp, "kills", 0),
+			pvp == null ? 0 : integer(pvp, "deaths", 0),
+			dungeons == null ? Map.of() : dungeons,
+			raids == null ? Map.of() : raids);
 	}
 
 	private static List<Character> parseCharacters(@Nullable JsonObject characters) {
