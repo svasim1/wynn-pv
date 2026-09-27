@@ -2,8 +2,8 @@ package dev.wynnpv.ui;
 
 import dev.wynnpv.api.PlayerProfile;
 import dev.wynnpv.api.WynncraftApi;
-import dev.wynnpv.ui.book.Ink;
-import dev.wynnpv.ui.book.Page;
+import dev.wynnpv.ui.theme.Ink;
+import dev.wynnpv.ui.theme.Page;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -22,6 +22,14 @@ final class Characters {
 	/** "Ninja" or "Ninja "Shadow"" with a nickname. */
 	static String title(PlayerProfile.Character character) {
 		return character.className() + (character.nickname() != null ? " \"" + character.nickname() + "\"" : "");
+	}
+
+	/** The highest combat level. */
+	static final int LEVEL_CAP = 120;
+
+	/** Gold for a character at the level cap. */
+	static int levelColor(PlayerProfile.Character character) {
+		return character.level() >= LEVEL_CAP ? Ink.GOLD : Ink.TEXT;
 	}
 
 	/** "ultimate_ironman" becomes "Ultimate Ironman". */

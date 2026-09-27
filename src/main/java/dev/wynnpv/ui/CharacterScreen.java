@@ -3,9 +3,9 @@ package dev.wynnpv.ui;
 import dev.wynnpv.api.AbilityTree;
 import dev.wynnpv.api.PlayerProfile;
 import dev.wynnpv.api.WynncraftApi;
-import dev.wynnpv.ui.book.BookScreen;
-import dev.wynnpv.ui.book.Ink;
-import dev.wynnpv.ui.book.Page;
+import dev.wynnpv.ui.theme.ThemedScreen;
+import dev.wynnpv.ui.theme.Ink;
+import dev.wynnpv.ui.theme.Page;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -16,7 +16,7 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /** One character as an open book: who they are on the left, their deeds, crafts, quests and abilities on the right. */
-public final class CharacterScreen extends BookScreen {
+public final class CharacterScreen extends ThemedScreen {
 	private static final int DEEDS = 0;
 	private static final int PROFESSIONS = 1;
 	private static final int QUESTS = 2;
@@ -31,8 +31,8 @@ public final class CharacterScreen extends BookScreen {
 		new Skill("intelligence", "Intelligence", "❉", 0xFF1E78A8),
 		new Skill("defence", "Defence", "✹", 0xFFB0301C),
 		new Skill("agility", "Agility", "❋", 0xFF6A7480));
-	/** The most points one skill can hold. */
-	private static final int SKILL_CAP = 150;
+	/** The most skill points a character can have, over all five skills. */
+	private static final int SKILL_POINTS = 200;
 	private static final List<String> GATHERING = List.of("fishing", "woodcutting", "mining", "farming");
 	private static final List<String> CRAFTING = List.of("alchemism", "armouring", "cooking", "jeweling", "scribing",
 		"tailoring", "weaponsmithing", "woodworking");
@@ -108,11 +108,18 @@ public final class CharacterScreen extends BookScreen {
 		}
 		page.gap(3);
 
-		String percent = c.xpPercent() + "%";
-		page.text("Experience", page.left, page.y, Ink.FADED);
-		page.text(percent, page.right() - page.font.width(percent), page.y, Ink.TEXT);
-		page.gap(Page.LINE);
-		page.bar(page.left, page.y, page.width, c.xpPercent() / 100f, 0xFF7FB04A);
+		if (c.level() >= Characters.LEVEL_CAP) {
+			page.text("Experience", page.left, page.y, Ink.FADED);
+			page.text("Max level", page.right() - page.font.width("Max level"), page.y, Ink.GOLD);
+			page.gap(Page.LINE);
+			page.bar(page.left, page.y, page.width, 1f, 0xFFE0B040);
+		} else {
+			String percent = c.xpPercent() + "% to " + (c.level() + 1);
+			page.text("Experience", page.left, page.y, Ink.FADED);
+			page.text(percent, page.right() - page.font.width(percent), page.y, Ink.TEXT);
+			page.gap(Page.LINE);
+			page.bar(page.left, page.y, page.width, c.xpPercent() / 100f, 0xFF7FB04A);
+		}
 		page.gap(8);
 		page.divider();
 
@@ -123,7 +130,7 @@ public final class CharacterScreen extends BookScreen {
 			return;
 		}
 		int total = points.values().stream().mapToInt(Integer::intValue).sum();
-		page.heading("Skill points", String.valueOf(total));
+		page.heading("Skill points", total + " / " + SKILL_POINTS);
 		int labelWidth = page.font.width("✤ Intelligence") + 6;
 		int valueWidth = page.font.width("150") + 4;
 		for (Skill skill : SKILLS) {
@@ -132,7 +139,7 @@ public final class CharacterScreen extends BookScreen {
 			String shown = String.valueOf(value);
 			page.text(shown, page.right() - page.font.width(shown), page.y, value == 0 ? Ink.FAINT : Ink.TEXT);
 			int barX = page.left + labelWidth;
-			page.bar(barX, page.y, page.right() - valueWidth - barX, value / (float) SKILL_CAP, skill.color());
+			page.bar(barX, page.y, page.right() - valueWidth - barX, value / (float) SKILL_POINTS, skill.color());
 			page.gap(Page.LINE);
 		}
 		renderFeats(page);

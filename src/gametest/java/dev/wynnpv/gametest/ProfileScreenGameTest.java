@@ -1,11 +1,13 @@
 package dev.wynnpv.gametest;
 
 import dev.wynnpv.api.PlayerProfile;
+import dev.wynnpv.config.Settings;
 import dev.wynnpv.ui.CharacterScreen;
 import dev.wynnpv.ui.ProfileScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.gui.screens.TitleScreen;
+import java.util.Locale;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -28,72 +30,78 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
-		ProfileScreen profileScreen = context.computeOnClient(client -> {
-			ProfileScreen screen = new ProfileScreen(PLAYER);
-			client.setScreen(screen);
-			return screen;
-		});
-		context.waitFor(client -> profileScreen.profile() != null, 20 * 30);
-
-		for (int[] size : SIZES) {
-			String name = (size[0] / size[2]) + "x" + (size[1] / size[2]);
-			context.getInput().resizeWindow(size[0], size[1]);
-			context.runOnClient(client -> {
-				client.options.guiScale().set(size[2]);
-				client.resizeDisplay();
+		for (Settings.ThemeChoice theme : Settings.ThemeChoice.values()) {
+			context.runOnClient(client -> Settings.get().theme = theme);
+			String prefix = theme.name().toLowerCase(Locale.ROOT) + "-";
+			ProfileScreen profileScreen = context.computeOnClient(client -> {
+				ProfileScreen screen = new ProfileScreen(PLAYER);
+				client.setScreen(screen);
+				return screen;
 			});
-			// Keep the mouse in a corner, off the pages.
-			context.getInput().setCursorPos(2, 2);
-
-			context.runOnClient(client -> client.setScreen(profileScreen));
-			context.waitTicks(3);
-			context.takeScreenshot(name + "-1-profile-characters");
-			context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
-			context.waitTicks(2);
-			context.takeScreenshot(name + "-2-profile-deeds");
-			context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
-
-			context.runOnClient(client -> {
-				PlayerProfile profile = profileScreen.profile();
-				PlayerProfile.Character archer = profile.characters().stream()
-					.filter(c -> c.uuid().equals(ARCHER)).findFirst().orElseThrow();
-				client.setScreen(new CharacterScreen(profileScreen, profile, archer));
-			});
-			context.waitTicks(3);
-			context.takeScreenshot(name + "-3-character-deeds");
-			String[] tabs = {"4-character-crafts", "5-character-quests", "6-character-abilities"};
-			for (String tab : tabs) {
-				context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
-				// The ability tree takes three API requests the first time.
-				context.waitTicks(tab.endsWith("abilities") ? 20 * 4 : 2);
-				context.takeScreenshot(name + "-" + tab);
+			context.waitFor(client -> profileScreen.profile() != null, 20 * 30);
+			for (int[] size : SIZES) {
+				screenshotAll(context, profileScreen, prefix + (size[0] / size[2]) + "x" + (size[1] / size[2]), size);
 			}
+			hover(context, profileScreen, prefix);
 		}
+		context.runOnClient(client -> client.setScreen(new TitleScreen()));
+	}
 
-		// Hovering, at 427x240: a character row, then an ability.
+	private static void screenshotAll(ClientGameTestContext context, ProfileScreen profileScreen, String name, int[] size) {
+		context.getInput().resizeWindow(size[0], size[1]);
+		context.runOnClient(client -> {
+			client.options.guiScale().set(size[2]);
+			client.resizeDisplay();
+		});
+		// Keep the mouse in a corner, off the panels.
+		context.getInput().setCursorPos(2, 2);
+
+		context.runOnClient(client -> client.setScreen(profileScreen));
+		context.waitTicks(3);
+		context.takeScreenshot(name + "-1-profile-characters");
+		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+		context.waitTicks(2);
+		context.takeScreenshot(name + "-2-profile-deeds");
+		context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+
+		context.runOnClient(client -> {
+			PlayerProfile profile = profileScreen.profile();
+			PlayerProfile.Character archer = profile.characters().stream()
+				.filter(c -> c.uuid().equals(ARCHER)).findFirst().orElseThrow();
+			client.setScreen(new CharacterScreen(profileScreen, profile, archer));
+		});
+		context.waitTicks(3);
+		context.takeScreenshot(name + "-3-character-deeds");
+		String[] tabs = {"4-character-crafts", "5-character-quests", "6-character-abilities"};
+		for (String tab : tabs) {
+			context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+			// The ability tree takes three API requests the first time.
+			context.waitTicks(tab.endsWith("abilities") ? 20 * 4 : 2);
+			context.takeScreenshot(name + "-" + tab);
+		}
+	}
+
+	/** Hovering at 427x240: a character, then an ability. */
+	private static void hover(ClientGameTestContext context, ProfileScreen profileScreen, String prefix) {
 		context.getInput().resizeWindow(854, 480);
 		context.runOnClient(client -> {
 			client.options.guiScale().set(2);
 			client.resizeDisplay();
 			client.setScreen(profileScreen);
 		});
-		context.getInput().setCursorPos(600, 196);
+		context.getInput().setCursorPos(600, 200);
 		context.waitTicks(3);
-		context.takeScreenshot("hover-1-character");
+		context.takeScreenshot(prefix + "hover-1-character");
 		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
 		context.waitTicks(3);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.waitTicks(3);
-		context.getInput().setCursorPos(628, 146);
+		// The first ability (column 5, row 1) sits in a different spot in each theme.
+		boolean board = prefix.startsWith("board");
+		context.getInput().setCursorPos(board ? 605 : 628, board ? 152 : 146);
 		context.waitTicks(3);
-		context.takeScreenshot("hover-2-ability");
-		context.getInput().setCursorPos(600, 300);
-		context.getInput().scroll(-4);
-		context.waitTicks(3);
-		context.takeScreenshot("hover-3-ability-tree-scrolled");
-
-		context.runOnClient(client -> client.setScreen(new TitleScreen()));
+		context.takeScreenshot(prefix + "hover-2-ability");
 	}
 }

@@ -1,4 +1,4 @@
-package dev.wynnpv.ui.book;
+package dev.wynnpv.ui.theme;
 
 /** Ink colours for writing on parchment; all text on the pages is drawn without a shadow. */
 public final class Ink {

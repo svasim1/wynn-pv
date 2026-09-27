@@ -2,9 +2,9 @@ package dev.wynnpv.ui;
 
 import dev.wynnpv.api.PlayerProfile;
 import dev.wynnpv.api.WynncraftApi;
-import dev.wynnpv.ui.book.BookScreen;
-import dev.wynnpv.ui.book.Ink;
-import dev.wynnpv.ui.book.Page;
+import dev.wynnpv.ui.theme.ThemedScreen;
+import dev.wynnpv.ui.theme.Ink;
+import dev.wynnpv.ui.theme.Page;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,9 +15,12 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /** A player's profile as an open book: who they are on the left, their characters or deeds on the right. */
-public final class ProfileScreen extends BookScreen {
+public final class ProfileScreen extends ThemedScreen {
 	private static final int CHARACTERS = 0;
 	private static final int ROW_HEIGHT = 22;
+	private static final int CARD_HEIGHT = 32;
+	private static final int CARD_MIN_WIDTH = 105;
+	private static final int CARD_PAD = 6;
 
 	private final String query;
 	private @Nullable PlayerProfile profile;
@@ -132,37 +135,87 @@ public final class ProfileScreen extends BookScreen {
 		}
 	}
 
+	@Override
+	protected boolean isCardTab(int tab) {
+		return tab == CHARACTERS && profile != null && !hidesCharacters(profile);
+	}
+
+	private static boolean hidesCharacters(PlayerProfile p) {
+		return p.restricted("characterListAccess") || p.restricted("characterDataAccess");
+	}
+
 	private void renderCharacters(Page page, PlayerProfile p) {
-		if (p.restricted("characterListAccess") || p.restricted("characterDataAccess")) {
+		if (hidesCharacters(p)) {
 			page.heading("Characters");
 			page.text("Hidden by the player", page.left, page.y, Ink.FAINT);
 			page.gap(Page.LINE);
 			return;
 		}
+		if (page.theme.cards()) {
+			renderCharacterCards(page, p);
+			return;
+		}
 		page.heading("Characters", String.valueOf(p.characters().size()));
 		for (PlayerProfile.Character character : p.characters()) {
 			int top = page.y;
-			boolean hovered = page.clickable(page.left - 3, top - 2, page.right() + 3, top + ROW_HEIGHT - 2,
-				() -> {
-					turnPage();
-					minecraft.setScreen(new CharacterScreen(this, p, character));
-				});
+			boolean hovered = page.clickable(page.left - 3, top - 2, page.right() + 3, top + ROW_HEIGHT - 2, () -> open(p, character));
 			if (hovered) {
 				page.graphics.fill(page.left - 3, top - 2, page.right() + 3, top + ROW_HEIGHT - 2, Ink.WASH);
 			}
 			String level = "Lv. " + character.level();
 			String name = page.fit(Characters.title(character), page.width - page.font.width(level) - 6);
 			page.text(name, page.left, top, hovered ? Ink.RUBRIC : Ink.TEXT);
-			page.text(level, page.right() - page.font.width(level), top, Ink.TEXT);
-			List<String> details = new ArrayList<>();
-			details.add("Total " + character.totalLevel());
-			if (character.quests() != null) {
-				details.add(character.quests().size() + " quests");
-			}
-			details.addAll(character.gamemodes().stream().map(Characters::gamemode).toList());
-			page.text(page.fit(String.join(" · ", details), page.width), page.left, top + 10, Ink.FADED);
+			page.text(level, page.right() - page.font.width(level), top, Characters.levelColor(character));
+			page.text(page.fit(details(character), page.width), page.left, top + 10, Ink.FADED);
 			page.gap(ROW_HEIGHT);
 		}
+	}
+
+	/** Characters as small notes pinned onto the board, as many to a row as fit. */
+	private void renderCharacterCards(Page page, PlayerProfile p) {
+		int gap = 6;
+		int columns = Math.max(1, (page.width + gap) / (CARD_MIN_WIDTH + gap));
+		int cardWidth = (page.width - (columns - 1) * gap) / columns;
+		List<PlayerProfile.Character> characters = p.characters();
+		// Room above the first row for the cards' nails.
+		page.gap(2);
+		for (int i = 0; i < characters.size(); i += columns) {
+			int top = page.y;
+			for (int column = 0; column < columns && i + column < characters.size(); column++) {
+				PlayerProfile.Character character = characters.get(i + column);
+				int x = page.left + column * (cardWidth + gap);
+				// Like lines of text, a card the panel edge would cut is left out.
+				if (!page.fullyVisible(top, CARD_HEIGHT)) {
+					continue;
+				}
+				boolean hovered = page.clickable(x, top, x + cardWidth, top + CARD_HEIGHT, () -> open(p, character));
+				int lift = hovered ? 1 : 0;
+				page.theme.drawCard(page.graphics, x, top, cardWidth, CARD_HEIGHT, hovered);
+				int textX = x + CARD_PAD;
+				int textWidth = cardWidth - 2 * CARD_PAD;
+				page.text(page.fit(Characters.title(character), textWidth), textX, top + 9 - lift, hovered ? Ink.RUBRIC : Ink.TEXT);
+				String level = "Lv. " + character.level();
+				page.text(level, textX, top + 20 - lift, Characters.levelColor(character));
+				String total = " · Total " + character.totalLevel();
+				page.text(page.fit(total, textWidth - page.font.width(level)), textX + page.font.width(level), top + 20 - lift, Ink.FADED);
+			}
+			page.gap(CARD_HEIGHT + gap);
+		}
+	}
+
+	private static String details(PlayerProfile.Character character) {
+		List<String> details = new ArrayList<>();
+		details.add("Total " + character.totalLevel());
+		if (character.quests() != null) {
+			details.add(character.quests().size() + " quests");
+		}
+		details.addAll(character.gamemodes().stream().map(Characters::gamemode).toList());
+		return String.join(" · ", details);
+	}
+
+	private void open(PlayerProfile p, PlayerProfile.Character character) {
+		turnPage();
+		minecraft.setScreen(new CharacterScreen(this, p, character));
 	}
 
 	private void renderDeeds(Page page, PlayerProfile p) {

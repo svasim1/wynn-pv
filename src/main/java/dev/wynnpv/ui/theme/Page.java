@@ -1,4 +1,4 @@
-package dev.wynnpv.ui.book;
+package dev.wynnpv.ui.theme;
 
 import dev.wynnpv.WynnPv;
 import java.util.List;
@@ -22,6 +22,8 @@ public final class Page {
 
 	public final GuiGraphics graphics;
 	public final Font font;
+	/** The theme the page is drawn in, e.g. for drawing cards. */
+	public final Theme theme;
 	/** The text area. */
 	public final int left;
 	public final int top;
@@ -29,14 +31,15 @@ public final class Page {
 	public final int height;
 	private final int mouseX;
 	private final int mouseY;
-	private final List<BookScreen.Hit> hits;
+	private final List<ThemedScreen.Hit> hits;
 	/** Where the next line is written. */
 	public int y;
 
-	Page(GuiGraphics graphics, Font font, int left, int top, int width, int height, int scroll, int mouseX, int mouseY,
-		List<BookScreen.Hit> hits) {
+	Page(GuiGraphics graphics, Font font, Theme theme, int left, int top, int width, int height, int scroll, int mouseX, int mouseY,
+		List<ThemedScreen.Hit> hits) {
 		this.graphics = graphics;
 		this.font = font;
+		this.theme = theme;
 		this.left = left;
 		this.top = top;
 		this.width = width;
@@ -210,8 +213,14 @@ public final class Page {
 		if (clippedTop >= clippedBottom) {
 			return false;
 		}
-		hits.add(new BookScreen.Hit(x0, clippedTop, x1, clippedBottom, action));
+		hits.add(new ThemedScreen.Hit(x0, clippedTop, x1, clippedBottom, action));
 		return mouseX >= x0 && mouseX < x1 && mouseY >= clippedTop && mouseY < clippedBottom;
+	}
+
+	/** Like {@link #clickable}, for an area outside the page's text, such as its footer. */
+	boolean clickableAt(int x0, int y0, int x1, int y1, Runnable action) {
+		hits.add(new ThemedScreen.Hit(x0, y0, x1, y1, action));
+		return mouseX >= x0 && mouseX < x1 && mouseY >= y0 && mouseY < y1;
 	}
 
 	public boolean isMouseOver(int x0, int y0, int x1, int y1) {

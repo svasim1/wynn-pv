@@ -1,8 +1,8 @@
 package dev.wynnpv.ui;
 
 import dev.wynnpv.api.AbilityTree;
-import dev.wynnpv.ui.book.Ink;
-import dev.wynnpv.ui.book.Page;
+import dev.wynnpv.ui.theme.Ink;
+import dev.wynnpv.ui.theme.Page;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
