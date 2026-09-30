@@ -94,7 +94,8 @@ public final class Page {
 		if (fullyVisible(y, 16)) {
 			var pose = graphics.pose();
 			pose.pushMatrix();
-			pose.translate(left + (width - font.width(text) * 2) / 2f, y);
+			// Whole GUI pixels only, so the doubled letters stay on the pixel grid.
+			pose.translate(left + (width - font.width(text) * 2) / 2, y);
 			pose.scale(2, 2);
 			graphics.drawString(font, text, 0, 0, color, false);
 			pose.popMatrix();
@@ -203,6 +204,13 @@ public final class Page {
 		}
 	}
 
+	/** A small sprite tinted {@code color}, left out like text when the page edge would cut it. */
+	public void icon(Identifier sprite, int x, int y, int w, int h, int color) {
+		if (fullyVisible(y, h)) {
+			graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, w, h, ARGB.opaque(color));
+		}
+	}
+
 	/**
 	 * Registers a clickable area and returns whether the mouse is over it, so the caller can draw a
 	 * hover state. Only the visible part of the page counts.
@@ -215,12 +223,6 @@ public final class Page {
 		}
 		hits.add(new ThemedScreen.Hit(x0, clippedTop, x1, clippedBottom, action));
 		return mouseX >= x0 && mouseX < x1 && mouseY >= clippedTop && mouseY < clippedBottom;
-	}
-
-	/** Like {@link #clickable}, for an area outside the page's text, such as its footer. */
-	boolean clickableAt(int x0, int y0, int x1, int y1, Runnable action) {
-		hits.add(new ThemedScreen.Hit(x0, y0, x1, y1, action));
-		return mouseX >= x0 && mouseX < x1 && mouseY >= y0 && mouseY < y1;
 	}
 
 	public boolean isMouseOver(int x0, int y0, int x1, int y1) {

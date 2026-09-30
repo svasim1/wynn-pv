@@ -1,5 +1,6 @@
 package dev.wynnpv.ui;
 
+import dev.wynnpv.WynnPv;
 import dev.wynnpv.api.AbilityTree;
 import dev.wynnpv.api.PlayerProfile;
 import dev.wynnpv.api.WynncraftApi;
@@ -13,6 +14,7 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 /** One character as an open book: who they are on the left, their deeds, crafts, quests and abilities on the right. */
@@ -22,15 +24,18 @@ public final class CharacterScreen extends ThemedScreen {
 	private static final int QUESTS = 2;
 	private static final int ABILITIES = 3;
 
-	/** Wynncraft's skills with the symbol and colour of their element. */
-	private record Skill(String key, String name, String symbol, int color) {}
+	/**
+	 * Wynncraft's skills with the symbol and colour of their element. The symbols are our own
+	 * sprites: Minecraft's font lacks Wynncraft's characters and draws them at half resolution.
+	 */
+	private record Skill(String key, String name, Identifier symbol, int color) {}
 
 	private static final List<Skill> SKILLS = List.of(
-		new Skill("strength", "Strength", "✤", 0xFF2E7A2A),
-		new Skill("dexterity", "Dexterity", "✦", 0xFFB08A10),
-		new Skill("intelligence", "Intelligence", "❉", 0xFF1E78A8),
-		new Skill("defence", "Defence", "✹", 0xFFB0301C),
-		new Skill("agility", "Agility", "❋", 0xFF6A7480));
+		new Skill("strength", "Strength", WynnPv.id("element/earth"), 0xFF2E7A2A),
+		new Skill("dexterity", "Dexterity", WynnPv.id("element/thunder"), 0xFFB08A10),
+		new Skill("intelligence", "Intelligence", WynnPv.id("element/water"), 0xFF1E78A8),
+		new Skill("defence", "Defence", WynnPv.id("element/fire"), 0xFFB0301C),
+		new Skill("agility", "Agility", WynnPv.id("element/air"), 0xFF6A7480));
 	/** The most skill points a character can have, over all five skills. */
 	private static final int SKILL_POINTS = 200;
 	private static final List<String> GATHERING = List.of("fishing", "woodcutting", "mining", "farming");
@@ -131,11 +136,12 @@ public final class CharacterScreen extends ThemedScreen {
 		}
 		int total = points.values().stream().mapToInt(Integer::intValue).sum();
 		page.heading("Skill points", total + " / " + SKILL_POINTS);
-		int labelWidth = page.font.width("✤ Intelligence") + 6;
+		int labelWidth = 10 + page.font.width("Intelligence") + 6;
 		int valueWidth = page.font.width("150") + 4;
 		for (Skill skill : SKILLS) {
 			int value = points.getOrDefault(skill.key(), 0);
-			page.text(skill.symbol() + " " + skill.name(), page.left, page.y, skill.color());
+			page.icon(skill.symbol(), page.left, page.y, 7, 7, skill.color());
+			page.text(skill.name(), page.left + 10, page.y, skill.color());
 			String shown = String.valueOf(value);
 			page.text(shown, page.right() - page.font.width(shown), page.y, value == 0 ? Ink.FAINT : Ink.TEXT);
 			int barX = page.left + labelWidth;

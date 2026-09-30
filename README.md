@@ -1,8 +1,6 @@
 # Wynn PV
 
-Look up any Wynncraft player's profile without leaving the game, pinned up on a town quest board
-or written up in an old tome. Switch between the two with the link at the foot of the left note or
-by pressing **T**.
+Look up any Wynncraft player's profile without leaving the game, pinned up on a town quest board.
 
 - Type **/pv &lt;player&gt;** to open their profile, or just **/pv** for your own.
 - See their rank, guild, playtime, when they joined and when they were last online.

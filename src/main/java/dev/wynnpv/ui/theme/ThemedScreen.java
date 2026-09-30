@@ -1,6 +1,5 @@
 package dev.wynnpv.ui.theme;
 
-import dev.wynnpv.config.Settings;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -16,18 +15,16 @@ import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * A profile screen in the player's chosen {@link Theme}: a fixed left panel and a right panel with
- * tabs that scrolls when its content is longer than the panel. All art is drawn at one texel per
+ * A profile screen drawn in a {@link Theme}: a fixed left panel and a right panel with tabs that
+ * scrolls when its content is longer than the panel. All art is drawn at one texel per
  * GUI pixel, so it is pixel-perfect at every GUI scale.
  */
 public abstract class ThemedScreen extends Screen {
-	/** Room kept at the foot of the left panel for the link that switches themes. */
-	private static final int FOOTER = 12;
-
 	public record Hit(int x0, int y0, int x1, int y1, Runnable action) {}
 
 	private final List<Hit> hits = new ArrayList<>();
-	private Theme theme = createTheme();
+	// The quest board. The tome (TomeTheme) is kept but not offered for now.
+	private final Theme theme = new BoardTheme();
 	private Theme.Layout layout = new Theme.Layout(new Theme.Area(0, 0, 0, 0), new Theme.Area(0, 0, 0, 0), 0);
 	private int selectedTab;
 	private double scroll;
@@ -35,10 +32,6 @@ public abstract class ThemedScreen extends Screen {
 
 	protected ThemedScreen(Component title) {
 		super(title);
-	}
-
-	private static Theme createTheme() {
-		return Settings.get().theme == Settings.ThemeChoice.TOME ? new TomeTheme() : new BoardTheme();
 	}
 
 	protected Theme theme() {
@@ -92,15 +85,6 @@ public abstract class ThemedScreen extends Screen {
 		layout = theme.layout(width, height, font);
 	}
 
-	private void switchTheme() {
-		Settings settings = Settings.get();
-		settings.theme = settings.theme == Settings.ThemeChoice.TOME ? Settings.ThemeChoice.BOARD : Settings.ThemeChoice.TOME;
-		settings.save();
-		theme = createTheme();
-		turnPage();
-		rebuildWidgets();
-	}
-
 	@Override
 	public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 		super.render(graphics, mouseX, mouseY, partialTick);
@@ -118,10 +102,9 @@ public abstract class ThemedScreen extends Screen {
 		theme.render(graphics, font, layout, tabs, back, bareRight, mouseX, mouseY, hits);
 
 		Theme.Area l = layout.left();
-		Page left = new Page(graphics, font, theme, l.x(), l.y(), l.w(), l.h() - FOOTER, 0, mouseX, mouseY, hits);
+		Page left = new Page(graphics, font, theme, l.x(), l.y(), l.w(), l.h(), 0, mouseX, mouseY, hits);
 		graphics.enableScissor(l.x() - 4, l.y() - 2, l.right() + 4, l.bottom() + 2);
 		renderLeft(left);
-		renderFooter(left, l);
 		graphics.disableScissor();
 
 		Theme.Area r = layout.right();
@@ -135,15 +118,6 @@ public abstract class ThemedScreen extends Screen {
 		if (maxScroll > 0) {
 			renderScrollMarks(graphics, r, maxScroll, bareRight);
 		}
-	}
-
-	/** The link to the other theme, right-aligned at the foot of the left panel. */
-	private void renderFooter(Page page, Theme.Area area) {
-		String label = (theme instanceof TomeTheme ? "Board" : "Tome") + " view »";
-		int x = area.right() - font.width(label);
-		int y = area.bottom() - 8;
-		boolean hovered = page.clickableAt(x - 2, y - 2, area.right() + 2, y + 9, this::switchTheme);
-		page.graphics.drawString(font, label, x, y, hovered ? Ink.RUBRIC : Ink.FAINT, false);
 	}
 
 	/** Small arrows beside the right panel, showing there is more above or below. */
@@ -193,7 +167,6 @@ public abstract class ThemedScreen extends Screen {
 			case GLFW.GLFW_KEY_DOWN -> scroll += Page.LINE;
 			case GLFW.GLFW_KEY_PAGE_UP -> scroll -= page;
 			case GLFW.GLFW_KEY_PAGE_DOWN -> scroll += page;
-			case GLFW.GLFW_KEY_T -> switchTheme();
 			case GLFW.GLFW_KEY_BACKSPACE -> {
 				if (backLabel() != null) {
 					onBack();

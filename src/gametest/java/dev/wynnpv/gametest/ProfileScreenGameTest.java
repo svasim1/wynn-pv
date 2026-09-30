@@ -1,13 +1,11 @@
 package dev.wynnpv.gametest;
 
 import dev.wynnpv.api.PlayerProfile;
-import dev.wynnpv.config.Settings;
 import dev.wynnpv.ui.CharacterScreen;
 import dev.wynnpv.ui.ProfileScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.gui.screens.TitleScreen;
-import java.util.Locale;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -30,20 +28,16 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext context) {
-		for (Settings.ThemeChoice theme : Settings.ThemeChoice.values()) {
-			context.runOnClient(client -> Settings.get().theme = theme);
-			String prefix = theme.name().toLowerCase(Locale.ROOT) + "-";
-			ProfileScreen profileScreen = context.computeOnClient(client -> {
-				ProfileScreen screen = new ProfileScreen(PLAYER);
-				client.setScreen(screen);
-				return screen;
-			});
-			context.waitFor(client -> profileScreen.profile() != null, 20 * 30);
-			for (int[] size : SIZES) {
-				screenshotAll(context, profileScreen, prefix + (size[0] / size[2]) + "x" + (size[1] / size[2]), size);
-			}
-			hover(context, profileScreen, prefix);
+		ProfileScreen profileScreen = context.computeOnClient(client -> {
+			ProfileScreen screen = new ProfileScreen(PLAYER);
+			client.setScreen(screen);
+			return screen;
+		});
+		context.waitFor(client -> profileScreen.profile() != null, 20 * 30);
+		for (int[] size : SIZES) {
+			screenshotAll(context, profileScreen, (size[0] / size[2]) + "x" + (size[1] / size[2]), size);
 		}
+		hover(context, profileScreen);
 		context.runOnClient(client -> client.setScreen(new TitleScreen()));
 	}
 
@@ -82,7 +76,7 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 	}
 
 	/** Hovering at 427x240: a character, then an ability. */
-	private static void hover(ClientGameTestContext context, ProfileScreen profileScreen, String prefix) {
+	private static void hover(ClientGameTestContext context, ProfileScreen profileScreen) {
 		context.getInput().resizeWindow(854, 480);
 		context.runOnClient(client -> {
 			client.options.guiScale().set(2);
@@ -91,17 +85,16 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 		});
 		context.getInput().setCursorPos(600, 200);
 		context.waitTicks(3);
-		context.takeScreenshot(prefix + "hover-1-character");
+		context.takeScreenshot("hover-1-character");
 		context.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
 		context.waitTicks(3);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.waitTicks(3);
-		// The first ability (column 5, row 1) sits in a different spot in each theme.
-		boolean board = prefix.startsWith("board");
-		context.getInput().setCursorPos(board ? 605 : 628, board ? 152 : 146);
+		// The first ability: column 5, row 1.
+		context.getInput().setCursorPos(605, 152);
 		context.waitTicks(3);
-		context.takeScreenshot(prefix + "hover-2-ability");
+		context.takeScreenshot("hover-2-ability");
 	}
 }
