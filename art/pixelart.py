@@ -536,6 +536,65 @@ def seal():
     return plain("board/seal", p)
 
 
+# Wynncraft's five elements as 7x7 symbols, white so each is tinted in its skill's colour: earth's
+# four leaves, thunder's star, a water drop, a flame and gusts of air. Light from the top left.
+ELEMENTS = {
+    "earth": [
+        "..XXX..",
+        "..XsX..",
+        "XX.X.XX",
+        "XsXXXsX",
+        "XX.X.XX",
+        "..XsX..",
+        "..XXX..",
+    ],
+    "thunder": [
+        "...X...",
+        "...X...",
+        "..XXX..",
+        "XXXXXXs",
+        "..XXs..",
+        "...s...",
+        "...s...",
+    ],
+    "water": [
+        "...X...",
+        "..XXX..",
+        ".XXXXX.",
+        ".XXXXX.",
+        "XXXXXXs",
+        "XXXXXss",
+        ".sssss.",
+    ],
+    "fire": [
+        "...X...",
+        "..XX...",
+        "..XXX.X",
+        ".XXXXX.",
+        "XXXXXXs",
+        "XXXXXss",
+        ".sssss.",
+    ],
+    "air": [
+        "..XX...",
+        "....X..",
+        "XXXX...",
+        ".......",
+        "XXXXXX.",
+        "......X",
+        "....XX.",
+    ],
+}
+
+
+def elements():
+    last = None
+    for name, rows in ELEMENTS.items():
+        last = plain("element/" + name, [[(0xFF,) * 3 if ch == "X" else (0xB8,) * 3 if ch == "s" else None for ch in row]
+                                          for row in rows])
+    return last
+
+
 def main():
     sprites = {
         "cover": cover(),
@@ -550,6 +609,7 @@ def main():
         "sign": sign(),
         "nail": nail(),
         "seal": seal(),
+        "elements": elements(),
     }
     left = page_left()
     sprites["page_left"] = left
