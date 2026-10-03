@@ -30,21 +30,31 @@ public record PlayerProfile(
 	@Nullable Guild guild,
 	@Nullable Global global,
 	List<Character> characters,
-	Map<String, Boolean> restrictions) {
+	Map<String, Boolean> restrictions,
+	@Nullable String nickname,
+	boolean veteran,
+	@Nullable String activeCharacter,
+	Map<String, Integer> ranking,
+	Map<String, Integer> previousRanking,
+	List<String> guildHistory) {
 
-	public record Guild(String name, String prefix, @Nullable String rank) {}
+	public record Guild(@Nullable String uuid, String name, String prefix, @Nullable String rank) {}
+
+	/** Combat totals over every raid run. */
+	public record RaidStats(long damageDealt, long damageTaken, long healthHealed, int deaths, int buffsTaken, int gambitsUsed) {}
 
 	/** Totals over all characters ({@code globalData}). */
 	public record Global(int totalLevel, int completedQuests, int contentCompletion, int dungeons, int raids,
 		int guildRaids, int wars, int mobsKilled, int chestsFound, int worldEvents, int lootruns, int caves,
-		int pvpKills, int pvpDeaths, Map<String, Integer> dungeonList, Map<String, Integer> raidList) {}
+		int pvpKills, int pvpDeaths, Map<String, Integer> dungeonList, Map<String, Integer> raidList,
+		Map<String, Integer> guildRaidList, @Nullable RaidStats raidStats) {}
 
 	/**
 	 * One character. Stats the player removed from their character page are missing from
 	 * {@link #stats}; build data (skill points) is null when hidden by an access rule.
 	 */
 	public record Character(String uuid, String type, @Nullable String reskin, @Nullable String nickname,
-		int level, int xpPercent, int totalLevel, List<String> gamemodes, @Nullable Double playtimeHours,
+		int level, long xp, int xpPercent, int totalLevel, List<String> gamemodes, boolean preEconomy, @Nullable Double playtimeHours,
 		Map<String, Integer> stats, @Nullable Map<String, Integer> skillPoints, Map<String, Profession> professions,
 		@Nullable Map<String, Integer> dungeons, @Nullable Map<String, Integer> raids, @Nullable List<String> quests) {
 
@@ -89,14 +99,26 @@ public record PlayerProfile(
 			parseGuild(object(root, "guild")),
 			parseGlobal(object(root, "globalData")),
 			parseCharacters(object(root, "characters")),
-			parseRestrictions(object(root, "restrictions")));
+			parseRestrictions(object(root, "restrictions")),
+			text(root, "nickname"),
+			bool(root, "veteran"),
+			text(root, "activeCharacter"),
+			ranks(object(root, "ranking")),
+			ranks(object(root, "previousRanking")),
+			strings(root.get("guildHistory")));
+	}
+
+	/** Leaderboard name to position, e.g. "combatSoloLevel" to 4. */
+	private static Map<String, Integer> ranks(@Nullable JsonObject ranking) {
+		Map<String, Integer> counts = counts(ranking);
+		return counts == null ? Map.of() : Map.copyOf(counts);
 	}
 
 	private static @Nullable Guild parseGuild(@Nullable JsonObject guild) {
 		if (guild == null || text(guild, "name") == null) {
 			return null;
 		}
-		return new Guild(text(guild, "name"), text(guild, "prefix"), text(guild, "rank"));
+		return new Guild(text(guild, "uuid"), text(guild, "name"), text(guild, "prefix"), text(guild, "rank"));
 	}
 
 	private static @Nullable Global parseGlobal(@Nullable JsonObject global) {
@@ -106,6 +128,7 @@ public record PlayerProfile(
 		JsonObject pvp = object(global, "pvp");
 		Map<String, Integer> dungeons = listCounts(object(global, "dungeons"));
 		Map<String, Integer> raids = listCounts(object(global, "raids"));
+		Map<String, Integer> guildRaids = listCounts(object(global, "guildRaids"));
 		return new Global(
 			integer(global, "totalLevel", 0),
 			integer(global, "completedQuests", 0),
@@ -122,7 +145,22 @@ public record PlayerProfile(
 			pvp == null ? 0 : integer(pvp, "kills", 0),
 			pvp == null ? 0 : integer(pvp, "deaths", 0),
 			dungeons == null ? Map.of() : dungeons,
-			raids == null ? Map.of() : raids);
+			raids == null ? Map.of() : raids,
+			guildRaids == null ? Map.of() : guildRaids,
+			raidStats(object(global, "raidStats")));
+	}
+
+	private static @Nullable RaidStats raidStats(@Nullable JsonObject stats) {
+		if (stats == null) {
+			return null;
+		}
+		return new RaidStats(whole(stats, "damageDealt"), whole(stats, "damageTaken"), whole(stats, "healthHealed"),
+			integer(stats, "deaths", 0), integer(stats, "buffsTaken", 0), integer(stats, "gambitsUsed", 0));
+	}
+
+	private static long whole(JsonObject obj, String key) {
+		JsonElement value = obj.get(key);
+		return value == null || value.isJsonNull() ? 0 : value.getAsLong();
 	}
 
 	private static List<Character> parseCharacters(@Nullable JsonObject characters) {
@@ -174,8 +212,8 @@ public record PlayerProfile(
 		}
 
 		return new Character(uuid, text(c, "type"), text(c, "reskin"), text(c, "nickname"),
-			integer(c, "level", 0), integer(c, "xpPercent", 0), integer(c, "totalLevel", 0), strings(c.get("gamemode")),
-			decimal(c, "playtime"), Map.copyOf(stats), counts(object(c, "skillPoints")), Map.copyOf(professions),
+			integer(c, "level", 0), whole(c, "xp"), integer(c, "xpPercent", 0), integer(c, "totalLevel", 0), strings(c.get("gamemode")),
+			bool(c, "preEconomy"), decimal(c, "playtime"), Map.copyOf(stats), counts(object(c, "skillPoints")), Map.copyOf(professions),
 			listCounts(object(c, "dungeons")), listCounts(object(c, "raids")), quests);
 	}
 

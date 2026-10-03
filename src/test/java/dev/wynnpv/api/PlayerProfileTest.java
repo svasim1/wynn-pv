@@ -51,6 +51,22 @@ class PlayerProfileTest {
 		assertTrue(profile.characters().stream().anyMatch(c -> c.className().equals("Dark Wizard")));
 	}
 
+	/** A real response from /v3/player/muffinsko?fullResult, saved on 2026-10-05: a top player. */
+	@Test
+	void parsesRankingsHistoryAndRaidStats() throws IOException {
+		PlayerProfile profile = PlayerProfile.parse(fixture("player-ranked.json"));
+
+		assertEquals(38, profile.ranking().size());
+		assertEquals(149, profile.ranking().get("miningLevel"));
+		assertEquals(1506, profile.previousRanking().get("miningLevel"));
+		assertEquals(2, profile.guildHistory().size());
+		assertEquals("266c9cf8-df07-41b0-b927-ce3402b88abe", profile.guild().uuid());
+		assertEquals("c6462273-35f8-4093-9198-3220f4d91087", profile.activeCharacter());
+		assertNotNull(profile.global().raidStats());
+		assertEquals(176_851_091_098L, profile.global().raidStats().damageDealt());
+		assertEquals(5, profile.global().guildRaidList().size());
+	}
+
 	/** Hand-written to match the documented shape of a profile with everything hidden. */
 	@Test
 	void parsesHiddenProfile() throws IOException {
