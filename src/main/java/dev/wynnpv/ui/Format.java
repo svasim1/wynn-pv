@@ -28,6 +28,21 @@ public final class Format {
 		return value >= 10 ? number(Math.round(value)) : String.format(Locale.ROOT, "%.1f", value);
 	}
 
+	/** "999", "12.3K", "36.9M", "176.9B": short enough for a ledger line. */
+	public static String compact(long value) {
+		if (value < 10_000) {
+			return number(value);
+		}
+		String[] units = {"K", "M", "B", "T"};
+		double scaled = value;
+		int unit = -1;
+		while (scaled >= 1000 && unit < units.length - 1) {
+			scaled /= 1000;
+			unit++;
+		}
+		return String.format(Locale.ROOT, scaled >= 100 ? "%.0f%s" : "%.1f%s", scaled, units[unit]);
+	}
+
 	/** "13,938 h" */
 	public static String hours(@Nullable Double hours) {
 		return hours == null ? "-" : number(Math.round(hours)) + " h";

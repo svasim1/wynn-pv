@@ -157,6 +157,18 @@ public final class Page {
 		ledger(label, Ink.FADED, value, Ink.TEXT);
 	}
 
+	/** A ledger line with the first of {@code values} that fits beside the whole label. */
+	public void ledgerFirstFitting(String label, String... values) {
+		int room = width - Math.min(font.width(label), width / 2) - 9;
+		for (String value : values) {
+			if (font.width(value) <= room) {
+				ledger(label, value);
+				return;
+			}
+		}
+		ledger(label, values[values.length - 1]);
+	}
+
 	public void ledger(String label, int labelColor, String value, int valueColor) {
 		// Short labels stay whole and the value gives way; only a label wider than half the page is cut.
 		int labelRoom = Math.min(font.width(label), width / 2);
@@ -167,6 +179,11 @@ public final class Page {
 		leader(left + font.width(shownLabel) + 3, valueX - 3, y + 7);
 		text(shownValue, valueX, y, valueColor);
 		y += LINE;
+	}
+
+	/** A dotted leader between {@code from} and {@code to}, for rows laid out by hand. */
+	public void leaderLine(int from, int to, int baseline) {
+		leader(from, to, baseline);
 	}
 
 	/** Dots every third pixel on the text baseline, starting on a multiple of three so rows line up. */
@@ -202,6 +219,11 @@ public final class Page {
 		if (filled >= 2) {
 			graphics.blitSprite(RenderPipelines.GUI_TEXTURED, BAR_FILL, x + 1, y + 1, filled, 5, ARGB.opaque(color));
 		}
+	}
+
+	/** Shows a leather tooltip at the mouse this frame. */
+	public void tooltip(List<Component> lines) {
+		graphics.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY, Ink.TOOLTIP);
 	}
 
 	/** A small sprite tinted {@code color}, left out like text when the page edge would cut it. */
