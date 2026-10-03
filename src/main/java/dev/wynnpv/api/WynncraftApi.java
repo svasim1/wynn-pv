@@ -33,6 +33,8 @@ public final class WynncraftApi {
 	private static final Map<String, Cached<PlayerProfile>> PROFILES = new ConcurrentHashMap<>();
 	private static final Map<String, Cached<AbilityTree>> ABILITIES = new ConcurrentHashMap<>();
 	private static final Map<String, CompletableFuture<String>> CLASS_TREES = new ConcurrentHashMap<>();
+	private static final Map<String, Cached<GuildInfo>> GUILDS = new ConcurrentHashMap<>();
+	private static final long GUILD_CACHE_MS = 10 * 60_000;
 
 	/** Why a lookup failed, worded for the player. */
 	public static final class LookupException extends RuntimeException {
@@ -51,6 +53,12 @@ public final class WynncraftApi {
 				300, "More than one player has been called " + player + ". Try their UUID.",
 				404, "No Wynncraft player called " + player + "."))
 				.thenApply(PlayerProfile::parse));
+	}
+
+	/** A guild by its UUID; guilds have their own rate limit, separate from players. */
+	public static CompletableFuture<GuildInfo> guild(String uuid) {
+		return cached(GUILDS, uuid, GUILD_CACHE_MS, () ->
+			get("guild/uuid/" + encode(uuid), Map.of(404, "That guild no longer exists.")).thenApply(GuildInfo::parse));
 	}
 
 	/** A character's ability tree, laid out like in game; hidden trees fail with a {@link LookupException}. */
