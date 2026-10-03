@@ -510,6 +510,29 @@ def nail():
     return plain("board/nail", [[colors.get(ch) for ch in row] for row in shape])
 
 
+def pin_gold():
+    shape = [
+        ".KKK.",
+        "KHGgK",
+        "KGgdK",
+        "KgddK",
+        ".KKK.",
+    ]
+    colors = {"K": GOLD_OUT, "H": GOLD_HI, "G": GOLD, "g": (0xC4, 0x8E, 0x34), "d": GOLD_D}
+    return plain("board/pin_gold", [[colors.get(ch) for ch in row] for row in shape])
+
+
+def arrows():
+    up = [
+        "..X..",
+        ".XXX.",
+        "XXXXX",
+    ]
+    pixels = [[(0xFF,) * 3 if ch == "X" else None for ch in row] for row in up]
+    plain("ui/arrow_up", pixels)
+    return plain("ui/arrow_down", list(reversed(pixels)))
+
+
 def seal():
     size = 15
     p = canvas(size, size)
@@ -610,6 +633,8 @@ def main():
         "nail": nail(),
         "seal": seal(),
         "elements": elements(),
+        "pin_gold": pin_gold(),
+        "arrows": arrows(),
     }
     left = page_left()
     sprites["page_left"] = left
