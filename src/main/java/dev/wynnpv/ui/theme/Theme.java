@@ -26,8 +26,8 @@ public interface Theme {
 	/** Whether character lists are shown as cards (see {@link #drawCard}) rather than rows. */
 	boolean cards();
 
-	/** A card in a card list, e.g. one character. */
-	default void drawCard(GuiGraphics graphics, int x, int y, int w, int h, boolean hovered) {}
+	/** A card in a card list, e.g. one character; {@code marked} singles one out, like the last played. */
+	default void drawCard(GuiGraphics graphics, int x, int y, int w, int h, boolean hovered, boolean marked) {}
 
 	/** The theme's name, e.g. for the link that switches to it. */
 	String name();

@@ -20,6 +20,7 @@ public final class BoardTheme implements Theme {
 	private static final Identifier NOTE = WynnPv.id("board/note");
 	private static final Identifier SIGN = WynnPv.id("board/sign");
 	private static final Identifier NAIL = WynnPv.id("board/nail");
+	private static final Identifier PIN_GOLD = WynnPv.id("board/pin_gold");
 	private static final Identifier SEAL = WynnPv.id("board/seal");
 
 	private static final int MAX_WIDTH = 500;
@@ -110,9 +111,9 @@ public final class BoardTheme implements Theme {
 	}
 
 	@Override
-	public void drawCard(GuiGraphics graphics, int x, int y, int w, int h, boolean hovered) {
+	public void drawCard(GuiGraphics graphics, int x, int y, int w, int h, boolean hovered, boolean marked) {
 		note(graphics, new Area(x, y, w, h), hovered);
-		nail(graphics, x + w / 2 - 2, y + 2 - (hovered ? 1 : 0));
+		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, marked ? PIN_GOLD : NAIL, x + w / 2 - 2, y + 2 - (hovered ? 1 : 0), 5, 5);
 	}
 
 	private void renderSigns(GuiGraphics graphics, Font font, List<Tab> tabs, @Nullable Tab back, int mouseX, int mouseY,

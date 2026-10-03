@@ -13,9 +13,8 @@ import org.lwjgl.glfw.GLFW;
  * several window sizes and GUI scales, to catch layout that breaks when the screen is small or big.
  */
 public class ProfileScreenGameTest implements FabricClientGameTest {
-	// Salted, Wynncraft's owner, has a public profile; their level 120 archer has abilities taken.
-	private static final String PLAYER = "1ed075fc-5aa9-42e0-a29f-640326c1d80c";
-	private static final String ARCHER = "92ddbed6-cbab-49ac-bdb0-5385f4ceab91";
+	// muffinsko, a top player with a public profile: leaderboard places, a guild, former guilds and raids.
+	private static final String PLAYER = "24369ee1-3d07-43cc-a660-a6c34218cbc9";
 
 	/** Window width, height and GUI scale; the comment is the resulting GUI size. */
 	private static final int[][] SIZES = {
@@ -56,13 +55,25 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
 		context.waitTicks(2);
 		context.takeScreenshot(name + "-2-profile-deeds");
-		context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+		context.getInput().scroll(-100);
+		context.waitTicks(2);
+		context.takeScreenshot(name + "-2b-profile-deeds-end");
+		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+		context.waitTicks(2);
+		context.takeScreenshot(name + "-2c-profile-renown");
+		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+		// The guild and former guilds are looked up the first time.
+		context.waitTicks(20 * 3);
+		context.takeScreenshot(name + "-2d-profile-guild");
+		for (int i = 0; i < 3; i++) {
+			context.getInput().pressKey(GLFW.GLFW_KEY_LEFT);
+		}
 
 		context.runOnClient(client -> {
 			PlayerProfile profile = profileScreen.profile();
-			PlayerProfile.Character archer = profile.characters().stream()
-				.filter(c -> c.uuid().equals(ARCHER)).findFirst().orElseThrow();
-			client.setScreen(new CharacterScreen(profileScreen, profile, archer));
+			PlayerProfile.Character active = profile.characters().stream()
+				.filter(c -> c.uuid().equals(profile.activeCharacter())).findFirst().orElse(profile.characters().getFirst());
+			client.setScreen(new CharacterScreen(profileScreen, profile, active));
 		});
 		context.waitTicks(3);
 		context.takeScreenshot(name + "-3-character-deeds");

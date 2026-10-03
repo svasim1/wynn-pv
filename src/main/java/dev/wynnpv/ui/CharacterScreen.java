@@ -107,9 +107,14 @@ public final class CharacterScreen extends ThemedScreen {
 		}
 		String base = Format.capitalize(c.type());
 		String kind = base.equals(c.className()) ? "" : base + " · ";
-		page.centered(kind + "Level " + c.level() + " · Total " + Format.number(c.totalLevel()), Ink.FADED);
-		if (!c.gamemodes().isEmpty()) {
-			page.centered(String.join(" · ", c.gamemodes().stream().map(Characters::gamemode).toList()), Ink.PURPLE);
+		page.centeredFirstFitting(Ink.FADED, kind + "Level " + c.level() + " · Total " + Format.number(c.totalLevel()),
+			kind + "Level " + c.level(), "Level " + c.level());
+		List<String> tags = new java.util.ArrayList<>(c.gamemodes().stream().map(Characters::gamemode).toList());
+		if (c.preEconomy()) {
+			tags.add("Pre-economy");
+		}
+		if (!tags.isEmpty()) {
+			page.centered(String.join(" · ", tags), Ink.PURPLE);
 		}
 		page.gap(3);
 
@@ -125,6 +130,10 @@ public final class CharacterScreen extends ThemedScreen {
 			page.gap(Page.LINE);
 			page.bar(page.left, page.y, page.width, c.xpPercent() / 100f, 0xFF7FB04A);
 		}
+		if (page.isMouseOver(page.left, page.y - Page.LINE, page.right(), page.y + 7)) {
+			page.tooltip(List.of(Component.literal(Format.number(c.xp()) + " XP").withColor(0xFFFFFFFF),
+				Component.literal("into level " + c.level()).withColor(0xFFAAAAAA)));
+		}
 		page.gap(8);
 		page.divider();
 
@@ -132,6 +141,8 @@ public final class CharacterScreen extends ThemedScreen {
 		if (points == null || profile.restricted("characterBuildAccess")) {
 			page.heading("Skill points");
 			page.text("Hidden by the player", page.left, page.y, Ink.FAINT);
+			page.gap(Page.LINE);
+			renderFeats(page);
 			return;
 		}
 		int total = points.values().stream().mapToInt(Integer::intValue).sum();
