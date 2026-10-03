@@ -7,6 +7,11 @@
 	"authors": [
 		"svante"
 	],
+	"contact": {
+		"homepage": "https://github.com/svasim1/wynn-pv",
+		"sources": "https://github.com/svasim1/wynn-pv",
+		"issues": "https://github.com/svasim1/wynn-pv/issues"
+	},
 	"license": "LGPL-3.0-only",
 	"environment": "client",
 	"entrypoints": {
