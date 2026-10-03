@@ -118,11 +118,18 @@ public final class CharacterScreen extends ThemedScreen {
 		}
 		page.gap(3);
 
-		if (c.level() >= Characters.LEVEL_CAP) {
+		if (c.level() >= Characters.BONUS_LEVEL) {
 			page.text("Experience", page.left, page.y, Ink.FADED);
-			page.text("Max level", page.right() - page.font.width("Max level"), page.y, Ink.GOLD);
+			page.text("Bonus level", page.right() - page.font.width("Bonus level"), page.y, Ink.GOLD);
 			page.gap(Page.LINE);
 			page.bar(page.left, page.y, page.width, 1f, 0xFFE0B040);
+		} else if (c.level() == Characters.LEVEL_CAP) {
+			// At the cap, the bar fills towards the bonus level.
+			String progress = c.xpPercent() + "% to bonus";
+			page.text("Max level", page.left, page.y, Ink.GOLD);
+			page.text(progress, page.right() - page.font.width(progress), page.y, Ink.TEXT);
+			page.gap(Page.LINE);
+			page.bar(page.left, page.y, page.width, c.xpPercent() / 100f, 0xFFE0B040);
 		} else {
 			String percent = c.xpPercent() + "% to " + (c.level() + 1);
 			page.text("Experience", page.left, page.y, Ink.FADED);

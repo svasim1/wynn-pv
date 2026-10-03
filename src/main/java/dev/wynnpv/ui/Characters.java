@@ -24,8 +24,12 @@ final class Characters {
 		return character.className() + (character.nickname() != null ? " \"" + character.nickname() + "\"" : "");
 	}
 
-	/** The highest combat level. */
+	/**
+	 * The combat level cap. Past it lies one bonus level, 121, which takes as much XP as all levels
+	 * before it together (wynncraft.wiki.gg/wiki/Experience_Points).
+	 */
 	static final int LEVEL_CAP = 120;
+	static final int BONUS_LEVEL = 121;
 
 	/** Gold for a character at the level cap. */
 	static int levelColor(PlayerProfile.Character character) {
