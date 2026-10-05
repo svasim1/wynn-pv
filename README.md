@@ -14,16 +14,13 @@ Players can hide parts of their profile on wynncraft.com; hidden parts show as h
 For Minecraft 1.21.11 with Fabric.
 
 ## What it downloads
-Wynn PV only downloads; it doesn't send anything about you or your game. Profiles come from the
-[Wynncraft API](https://docs.wynncraft.com) (`api.wynncraft.com`), which allows 50 lookups a
-minute, so a profile is reused for two minutes before it is asked for again, and an ability tree
-for ten.
+Wynn PV needs the internet to look players up. It only downloads; it doesn't send anything about
+you or your game.
 
-## Art
-The book is pixel art drawn by `art/pixelart.py`; run `python3 art/pixelart.py --preview` to
-regenerate the textures and see enlarged previews in `art/preview/`.
+- Player profiles, characters, guilds and ability trees from the
+  [Wynncraft API](https://docs.wynncraft.com) (`api.wynncraft.com`).
+
+A profile is kept for a couple of minutes, so opening it again is instant.
 
 ## License
 LGPL-3.0, see [LICENSE](LICENSE). To build it yourself, run `./gradlew build` (needs Java 25).
-`./gradlew runClientGameTest` opens the screens in a real client against the live API and saves
-screenshots to `build/run/clientGameTest/screenshots`.
