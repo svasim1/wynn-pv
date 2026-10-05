@@ -1,10 +1,13 @@
-# Publishes a GitHub release when a version tag is pushed, e.g. v1.0.0+1.21.11.
-# The tag must match mod_version in gradle.properties (with a leading "v").
+# Publishes a GitHub release with the mod jar and its sources. Two ways to start it:
+# - push a version tag, e.g. v0.1.0+1.21.11; it must match mod_version in gradle.properties
+# - run it from the Actions tab ("Run workflow"); it tags the commit with v<mod_version> itself
+# If a release for the tag already exists, e.g. made on the GitHub website, the jars are added to it.
 
 name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,23 +25,34 @@ jobs:
         with:
           java-version: '25'
           distribution: 'microsoft'
-      - name: check tag matches mod version
+      - name: work out the tag
         run: |
           version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match mod_version $version"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match mod_version $version in gradle.properties"
+              exit 1
+            fi
+          elif [ -n "$(git ls-remote --tags origin "refs/tags/v$version")" ]; then
+            echo "::error::v$version is already released. Raise mod_version in gradle.properties first."
             exit 1
           fi
+          echo "TAG=v$version" >> "$GITHUB_ENV"
       - name: build
         run: |
           chmod +x ./gradlew
           ./gradlew build
-      - name: create release
+      - name: publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          minecraft=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
-          gh release create "$GITHUB_REF_NAME" build/libs/*.jar \
-            --title "Wynn PV ${GITHUB_REF_NAME#v}" \
-            --notes "For Minecraft $minecraft with Fabric Loader and Fabric API. Install the jar without \"-sources\" in your mods folder." \
-            --generate-notes
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" build/libs/*.jar --clobber
+          else
+            minecraft=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+            gh release create "$TAG" build/libs/*.jar \
+              --target "$GITHUB_SHA" \
+              --title "Wynn PV ${TAG#v}" \
+              --notes "For Minecraft $minecraft with Fabric Loader and Fabric API. Install the jar without \"-sources\" in your mods folder." \
+              --generate-notes
+          fi
