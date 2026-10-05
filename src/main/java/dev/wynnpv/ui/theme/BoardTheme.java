@@ -47,11 +47,6 @@ public final class BoardTheme implements Theme {
 	private Area rightNote = new Area(0, 0, 0, 0);
 
 	@Override
-	public String name() {
-		return "Board";
-	}
-
-	@Override
 	public boolean cards() {
 		return true;
 	}

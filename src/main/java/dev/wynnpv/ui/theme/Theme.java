@@ -29,9 +29,6 @@ public interface Theme {
 	/** A card in a card list, e.g. one character; {@code marked} singles one out, like the last played. */
 	default void drawCard(GuiGraphics graphics, int x, int y, int w, int h, boolean hovered, boolean marked) {}
 
-	/** The theme's name, e.g. for the link that switches to it. */
-	String name();
-
 	/** A text area in GUI pixels. */
 	record Area(int x, int y, int w, int h) {
 		public int right() {

@@ -23,7 +23,6 @@ public abstract class ThemedScreen extends Screen {
 	public record Hit(int x0, int y0, int x1, int y1, Runnable action) {}
 
 	private final List<Hit> hits = new ArrayList<>();
-	// The quest board. The tome (TomeTheme) is kept but not offered for now.
 	private final Theme theme = new BoardTheme();
 	private Theme.Layout layout = new Theme.Layout(new Theme.Area(0, 0, 0, 0), new Theme.Area(0, 0, 0, 0), 0);
 	private int selectedTab;

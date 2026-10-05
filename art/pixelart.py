@@ -1,4 +1,4 @@
-"""Wynn PV's pixel art: an old leather-bound tome. Every sprite is an exact pixel grid in one shared
+"""Wynn PV's pixel art: a town quest board, its notes and signs, and the ink on them. Every sprite is an exact pixel grid in one shared
 palette, drawn at one texel per GUI pixel so it stays crisp at every GUI scale. Sprites that grow
 with the screen are nine-slice GUI sprites (a .png.mcmeta next to each) whose edges and middle tile.
 
@@ -18,24 +18,12 @@ PREVIEW = os.path.join(ROOT, "art", "preview")
 
 # Light comes from the top left.
 LEATHER_OUT = (0x1F, 0x0E, 0x0A)
-LEATHER_D = (0x48, 0x1D, 0x17)
-LEATHER = (0x5A, 0x26, 0x1E)
-LEATHER_L = (0x68, 0x2F, 0x25)
-LEATHER_HI = (0x80, 0x3D, 0x2F)
-STITCH = (0xB8, 0x8E, 0x58)
-STITCH_D = (0x7A, 0x56, 0x30)
 GOLD_OUT = (0x46, 0x2A, 0x0C)
 GOLD_D = (0xA4, 0x70, 0x22)
 GOLD = (0xDC, 0xAC, 0x48)
 GOLD_HI = (0xFF, 0xE2, 0x8C)
-PARCH_HI = (0xF5, 0xE8, 0xC8)
-PARCH = (0xED, 0xDB, 0xB2)
-PARCH_1 = (0xE3, 0xCE, 0x9F)
 PARCH_2 = (0xD5, 0xBC, 0x89)
 PARCH_3 = (0xC2, 0xA4, 0x70)
-EDGE_L = (0xE4, 0xD0, 0xA2)
-EDGE_D = (0xBE, 0xA0, 0x6E)
-PAGE_OUT = (0x4E, 0x38, 0x22)
 INK_FADED = (0x8A, 0x6A, 0x46)
 INK = (0x4A, 0x32, 0x1C)
 CLEAR = None
@@ -113,142 +101,6 @@ def speckle(pixels, rng, base, spots, x0=0, y0=0, x1=None, y1=None):
             pixels[y][x] = c
 
 
-# The cover: oxblood leather, a stitched seam and gold corner guards.
-def cover():
-    size, border = 48, 12
-    rng = random.Random(7)
-    p = canvas(size, size)
-    speckle(p, rng, LEATHER, [(LEATHER_D, 0.10), (LEATHER_L, 0.07)])
-    for i in range(size):
-        p[0][i] = p[size - 1][i] = p[i][0] = p[i][size - 1] = LEATHER_OUT
-    for i in range(1, size - 1):
-        p[1][i] = LEATHER_HI
-        p[i][1] = LEATHER_HI
-        p[size - 2][i] = LEATHER_D
-        p[i][size - 2] = LEATHER_D
-    # Stitches four pixels in: two on, two off, with a shadow below/right of each.
-    inset = 4
-    for i in range(inset, size - inset):
-        if (i // 2) % 2 == 0:
-            for (x, y, sx, sy) in ((i, inset, i, inset + 1), (i, size - 1 - inset, i, size - inset),
-                                   (inset, i, inset + 1, i), (size - 1 - inset, i, size - inset, i)):
-                p[y][x] = STITCH
-                if p[sy][sx] != STITCH:
-                    p[sy][sx] = STITCH_D
-    # Gold corner guard, a triangle with a rivet, mirrored into each corner.
-    guard = canvas(border, border)
-    reach = 10
-    for y in range(border):
-        for x in range(border):
-            d = x + y
-            if d > reach:
-                continue
-            if d == reach or x == 0 or y == 0:
-                guard[y][x] = GOLD_OUT
-            elif x == 1 or y == 1:
-                guard[y][x] = GOLD_HI
-            elif d >= reach - 2:
-                guard[y][x] = GOLD_D
-            else:
-                guard[y][x] = GOLD
-    guard[3][3] = GOLD_OUT
-    guard[2][3] = GOLD_D
-    guard[3][2] = GOLD_D
-    guard[4][4] = GOLD_HI
-    for flip_x in (False, True):
-        for flip_y in (False, True):
-            for y in range(border):
-                for x in range(border):
-                    c = guard[y][x]
-                    if c is None:
-                        continue
-                    px = size - 1 - x if flip_x else x
-                    py = size - 1 - y if flip_y else y
-                    p[py][px] = c
-    return nine_slice("book/cover", p, border, border, border, border)
-
-
-# A page: parchment, the stacked edges of the pages below it and a shadow towards the spine.
-def page_left():
-    w, h = 64, 64
-    left, top, right, bottom = 6, 4, 12, 7
-    rng = random.Random(11)
-    p = canvas(w, h)
-    speckle(p, rng, PARCH, [(PARCH_1, 0.07), (PARCH_HI, 0.04), (PARCH_2, 0.01)])
-    # Shadow towards the spine, dithered between bands.
-    for y in range(h):
-        for x in range(w - right, w):
-            t = x - (w - right)
-            if t >= 10:
-                c = PARCH_3
-            elif t >= 8:
-                c = PARCH_3 if (x + y) % 2 == 0 else PARCH_2
-            elif t >= 6:
-                c = PARCH_2
-            elif t >= 4:
-                c = PARCH_2 if (x + y) % 2 == 0 else PARCH_1
-            elif t >= 2:
-                c = PARCH_1
-            else:
-                c = PARCH_1 if (x + y) % 2 == 0 else p[y][x]
-            p[y][x] = c
-    # Top edge.
-    for x in range(w):
-        p[0][x] = PAGE_OUT
-        p[1][x] = PARCH_HI if p[1][x] in (PARCH, PARCH_HI, PARCH_1) else p[1][x]
-    # Stacked page edges on the outer side and the bottom.
-    for y in range(h):
-        p[y][0] = PAGE_OUT
-        for x in range(1, left - 1):
-            p[y][x] = EDGE_D if x % 2 == 1 else EDGE_L
-        p[y][left - 1] = PARCH_2
-    for x in range(w):
-        p[h - 1][x] = PAGE_OUT
-        for y in range(h - bottom + 1, h - 1):
-            p[y][x] = EDGE_D if (h - 1 - y) % 2 == 1 else EDGE_L
-        if x >= left - 1:
-            p[h - bottom][x] = PARCH_2
-    # Where the two stacks meet, the edges turn the corner.
-    for i in range(1, left - 1):
-        for j in range(1, bottom - 1):
-            p[h - 1 - j][i] = EDGE_D if min(i, j) % 2 == 1 else EDGE_L
-    p[0][0] = CLEAR
-    p[h - 1][0] = CLEAR
-    return nine_slice("book/page_left", p, left, top, right, bottom)
-
-
-def page_right(left_pixels):
-    return nine_slice("book/page_right", mirror_x(left_pixels), 12, 4, 6, 7)
-
-
-# A cloth bookmark ribbon sticking up above the book, grey so it can be tinted any colour.
-def ribbon():
-    w, h = 24, 20
-    border = 4
-    p = canvas(w, h)
-    for y in range(h):
-        for x in range(w):
-            c = (0xD2,) * 3 if (x + y) % 2 == 0 else (0xC8,) * 3
-            if x == 1:
-                c = (0xEE,) * 3
-            elif x >= w - 3:
-                c = (0xA6,) * 3
-            if y == 1 and 1 <= x < w - 1:
-                c = (0xF2,) * 3
-            p[y][x] = c
-    for y in range(h):
-        p[y][0] = p[y][w - 1] = (0x30,) * 3
-    for x in range(w):
-        p[0][x] = (0x30,) * 3
-    # Rounded top corners.
-    p[0][0] = p[0][w - 1] = CLEAR
-    # Stitches along the top.
-    for x in range(3, w - 3):
-        if (x // 2) % 2 == 0:
-            p[3][x] = (0xF8,) * 3
-    return nine_slice("book/ribbon", p, border, border, border, 2)
-
-
 # An ink flourish to divide sections: a line with curled ends; the gem marks its middle.
 def divider():
     w, h = 32, 5
@@ -270,7 +122,7 @@ def divider():
     for y in range(h):
         for x in range(8):
             p[y][w - 8 + x] = right[y][x]
-    nine_slice("book/divider", p, 8, 0, 8, 0)
+    nine_slice("page/divider", p, 8, 0, 8, 0)
     gem = canvas(9, 5)
     shape = [
         "....X....",
@@ -285,7 +137,7 @@ def divider():
                 gem[y][x] = INK
             elif ch == "R":
                 gem[y][x] = (0x9C, 0x2A, 0x22)
-    plain("book/divider_gem", gem)
+    plain("page/divider_gem", gem)
     return p
 
 
@@ -303,7 +155,7 @@ def bars():
         frame[y][0] = INK_FADED
         frame[y][11] = INK_FADED
     frame[0][0] = frame[0][11] = frame[6][0] = frame[6][11] = CLEAR
-    nine_slice("book/bar", frame, 2, 2, 2, 2)
+    nine_slice("page/bar", frame, 2, 2, 2, 2)
     fill = canvas(4, 5)
     for x in range(4):
         fill[0][x] = (0xFF,) * 3
@@ -311,7 +163,7 @@ def bars():
         fill[2][x] = (0xD0,) * 3
         fill[3][x] = (0xC0,) * 3
         fill[4][x] = (0x98,) * 3
-    nine_slice("book/bar_fill", fill, 1, 1, 1, 1)
+    nine_slice("page/bar_fill", fill, 1, 1, 1, 1)
     return frame
 
 
@@ -620,9 +472,6 @@ def elements():
 
 def main():
     sprites = {
-        "cover": cover(),
-        "page_left": None,
-        "ribbon": ribbon(),
         "divider": divider(),
         "bar": bars(),
         "tooltip": tooltip(),
@@ -636,9 +485,6 @@ def main():
         "pin_gold": pin_gold(),
         "arrows": arrows(),
     }
-    left = page_left()
-    sprites["page_left"] = left
-    sprites["page_right"] = page_right(left)
     if "--preview" in sys.argv:
         for name, pixels in sprites.items():
             png(os.path.join(PREVIEW, name + ".png"), pixels, scale=8)

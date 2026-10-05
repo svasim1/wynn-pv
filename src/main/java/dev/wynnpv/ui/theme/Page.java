@@ -15,10 +15,10 @@ import net.minecraft.util.ARGB;
  */
 public final class Page {
 	public static final int LINE = 10;
-	private static final Identifier DIVIDER = WynnPv.id("book/divider");
-	private static final Identifier DIVIDER_GEM = WynnPv.id("book/divider_gem");
-	private static final Identifier BAR = WynnPv.id("book/bar");
-	private static final Identifier BAR_FILL = WynnPv.id("book/bar_fill");
+	private static final Identifier DIVIDER = WynnPv.id("page/divider");
+	private static final Identifier DIVIDER_GEM = WynnPv.id("page/divider_gem");
+	private static final Identifier BAR = WynnPv.id("page/bar");
+	private static final Identifier BAR_FILL = WynnPv.id("page/bar_fill");
 
 	public final GuiGraphics graphics;
 	public final Font font;

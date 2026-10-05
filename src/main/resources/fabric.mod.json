@@ -3,7 +3,7 @@
 	"id": "wynnpv",
 	"version": "${version}",
 	"name": "Wynn PV",
-	"description": "Look up any Wynncraft player's profile in game",
+	"description": "Profile Viewer for Wynncraft",
 	"authors": [
 		"svante"
 	],
