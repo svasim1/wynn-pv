@@ -1,4 +1,4 @@
-# Wynn PV
+<p align="center"><img src="docs/banner.png" width="368" alt="Wynn PV"></p>
 
 Look up any Wynncraft player's profile without leaving the game, pinned up on a town quest board.
 
