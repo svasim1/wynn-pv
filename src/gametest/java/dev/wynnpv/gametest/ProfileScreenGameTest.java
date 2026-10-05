@@ -15,6 +15,8 @@ import org.lwjgl.glfw.GLFW;
 public class ProfileScreenGameTest implements FabricClientGameTest {
 	// muffinsko, a top player with a public profile: leaderboard places, a guild, former guilds and raids.
 	private static final String PLAYER = "24369ee1-3d07-43cc-a660-a6c34218cbc9";
+	// fusianasan_ hides their stats, characters and online status.
+	private static final String RESTRICTED = "1c4246b0-2734-48d3-a9b9-7ca38e31e2a0";
 
 	/** Window width, height and GUI scale; the comment is the resulting GUI size. */
 	private static final int[][] SIZES = {
@@ -37,7 +39,27 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 			screenshotAll(context, profileScreen, (size[0] / size[2]) + "x" + (size[1] / size[2]), size);
 		}
 		hover(context, profileScreen);
+		restricted(context);
 		context.runOnClient(client -> client.setScreen(new TitleScreen()));
+	}
+
+	/** A player hiding their stats, characters and online status, at 427x240. */
+	private static void restricted(ClientGameTestContext context) {
+		ProfileScreen screen = context.computeOnClient(client -> {
+			ProfileScreen hidden = new ProfileScreen(RESTRICTED);
+			client.setScreen(hidden);
+			return hidden;
+		});
+		context.waitFor(client -> screen.profile() != null, 20 * 30);
+		context.getInput().setCursorPos(2, 2);
+		context.waitTicks(3);
+		context.takeScreenshot("restricted-1-characters");
+		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+		context.waitTicks(2);
+		context.takeScreenshot("restricted-2-deeds");
+		context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+		context.waitTicks(2);
+		context.takeScreenshot("restricted-3-renown");
 	}
 
 	private static void screenshotAll(ClientGameTestContext context, ProfileScreen profileScreen, String name, int[] size) {

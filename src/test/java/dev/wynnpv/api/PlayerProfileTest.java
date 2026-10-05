@@ -67,6 +67,25 @@ class PlayerProfileTest {
 		assertEquals(5, profile.global().guildRaidList().size());
 	}
 
+	/**
+	 * A real response for a player hiding their stats, characters and online status, saved on
+	 * 2026-10-05: the hidden fields are left out entirely rather than sent as null.
+	 */
+	@Test
+	void parsesRealRestrictedProfile() throws IOException {
+		PlayerProfile profile = PlayerProfile.parse(fixture("player-restricted.json"));
+
+		assertEquals("fusianasan_", profile.username());
+		assertTrue(profile.restricted("mainAccess"));
+		assertTrue(profile.restricted("characterDataAccess"));
+		assertTrue(profile.restricted("onlineStatus"));
+		assertNull(profile.global());
+		assertNull(profile.firstJoin());
+		assertNull(profile.playtimeHours());
+		assertTrue(profile.characters().isEmpty());
+		assertFalse(profile.ranking().isEmpty());
+	}
+
 	/** Hand-written to match the documented shape of a profile with everything hidden. */
 	@Test
 	void parsesHiddenProfile() throws IOException {

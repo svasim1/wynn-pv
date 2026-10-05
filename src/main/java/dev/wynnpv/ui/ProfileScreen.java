@@ -148,20 +148,21 @@ public final class ProfileScreen extends ThemedScreen {
 
 		page.heading("Chronicle");
 		Instant joined = Format.instant(p.firstJoin());
-		page.ledger("Joined", Format.day(joined));
+		page.ledger("Joined", joined == null ? "Hidden" : Format.day(joined));
 		long years = Format.yearsSince(joined);
 		if (years > 0) {
 			page.ledger("Playing for", Format.plural(years, "year"));
 		}
 		page.ledger("Played", p.playtimeHours() == null ? "Hidden" : Format.hours(p.playtimeHours()));
-		page.ledger("Characters", p.restricted("characterListAccess") ? "Hidden" : String.valueOf(p.characters().size()));
+		page.ledger("Characters", hidesCharacters(p) ? "Hidden" : String.valueOf(p.characters().size()));
 		PlayerProfile.Character active = activeCharacter(p);
 		if (active != null) {
 			page.ledgerFirstFitting("Last played", active.className() + " " + active.level(), active.className());
 		}
 
-		// Highlights as far as they fit; small screens keep the essentials.
-		if (page.remaining() < 2 * Page.LINE + 23) {
+		// Highlights as far as they fit; small screens keep the essentials. They come from the
+		// characters and totals, so a player hiding both has none.
+		if (page.remaining() < 2 * Page.LINE + 23 || (p.characters().isEmpty() && p.global() == null)) {
 			return;
 		}
 		page.divider();
