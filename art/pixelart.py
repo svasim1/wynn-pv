@@ -470,6 +470,74 @@ def elements():
     return last
 
 
+# Ability tree nodes, grey so each is tinted in its tier's colour: a faceted gem for abilities, a
+# diamond for the class's spells and a star for ultimates. "_empty" versions are only outlined, for
+# abilities not taken. Two sizes: "large" for 18 pixel cells, "small" for the 14 pixel cells of small
+# screens.
+NODE_OUT = (0x2A, 0x1A, 0x0C)
+
+
+def node_shape(kind, size):
+    """True where the shape covers the pixel, in a size x size square."""
+    c = (size - 1) / 2
+
+    def inside(x, y):
+        dx, dy = abs(x - c), abs(y - c)
+        if kind == "gem":
+            return dx + dy <= size * 0.62 and max(dx, dy) <= c
+        if kind == "spell":
+            return dx + dy <= c + 0.5
+        # star: two long diamonds crossing, so four points taper out from a solid middle
+        return dx + dy * 1.7 <= c + 0.6 or dy + dx * 1.7 <= c + 0.6
+
+    return [[inside(x, y) for x in range(size)] for y in range(size)]
+
+
+def node_sprite(kind, size, empty):
+    mask = node_shape(kind, size)
+    p = canvas(size, size)
+    on = lambda x, y: 0 <= x < size and 0 <= y < size and mask[y][x]
+    c = (size - 1) / 2
+    for y in range(size):
+        for x in range(size):
+            if not mask[y][x]:
+                continue
+            edge = not (on(x - 1, y) and on(x + 1, y) and on(x, y - 1) and on(x, y + 1))
+            if edge:
+                p[y][x] = NODE_OUT
+            elif empty:
+                p[y][x] = (0xED, 0xDB, 0xB2) if not (on(x - 2, y) and on(x + 2, y) and on(x, y - 2) and on(x, y + 2)) else None
+                if p[y][x] is not None:
+                    p[y][x] = (0xC0, 0xC0, 0xC0)
+            else:
+                # Grey tones, light from the top left; a bright facet across the upper left.
+                light = (x - c) + (y - c)
+                if light < -c * 0.6:
+                    p[y][x] = (0xFF, 0xFF, 0xFF)
+                elif light < 0:
+                    p[y][x] = (0xE0, 0xE0, 0xE0)
+                elif light < c * 0.6:
+                    p[y][x] = (0xC0, 0xC0, 0xC0)
+                else:
+                    p[y][x] = (0x96, 0x96, 0x96)
+    # A sparkle on taken nodes.
+    if not empty and size >= 12:
+        hx, hy = int(c) - 2, int(c) - 2
+        if mask[hy][hx]:
+            p[hy][hx] = (0xFF, 0xFF, 0xFF)
+    return p
+
+
+def tree_nodes():
+    last = None
+    for scale, sizes in (("large", {"gem": 12, "spell": 14, "star": 16}), ("small", {"gem": 10, "spell": 12, "star": 12})):
+        for kind, size in sizes.items():
+            for empty in (False, True):
+                name = f"tree/{kind}_{scale}" + ("_empty" if empty else "")
+                last = plain(name, node_sprite(kind, size, empty))
+    return last
+
+
 def main():
     sprites = {
         "divider": divider(),
@@ -484,6 +552,7 @@ def main():
         "elements": elements(),
         "pin_gold": pin_gold(),
         "arrows": arrows(),
+        "tree_nodes": tree_nodes(),
     }
     if "--preview" in sys.argv:
         for name, pixels in sprites.items():

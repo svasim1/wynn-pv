@@ -30,7 +30,12 @@ public record AbilityTree(List<Node> nodes, Map<String, Ability> abilities, Set<
 	 * (e.g. "nodeYellow", "ultimateTrapper"), for connectors the directions it joins (e.g.
 	 * "connector_right_down_left").
 	 */
-	public record Node(Cell cell, int page, boolean ability, @Nullable String id, String style) {
+	/**
+	 * {@code item} and {@code model} say how Wynncraft's resource pack draws an ability's icon: that
+	 * item with that custom model data (e.g. "minecraft:potion" and 73). Null for connectors.
+	 */
+	public record Node(Cell cell, int page, boolean ability, @Nullable String id, String style, @Nullable String item,
+		@Nullable Integer model) {
 		public boolean connects(Direction direction) {
 			return !ability && style.contains(direction.name().toLowerCase(java.util.Locale.ROOT));
 		}
@@ -120,9 +125,16 @@ public record AbilityTree(List<Node> nodes, Map<String, Ability> abilities, Set<
 		int page = meta.get("page").getAsInt();
 		boolean ability = "ability".equals(node.get("type").getAsString());
 		if (!ability) {
-			return new Node(cell, page, false, null, meta.get("icon").getAsString());
+			return new Node(cell, page, false, null, meta.get("icon").getAsString(), null, null);
 		}
-		String icon = meta.getAsJsonObject("icon").getAsJsonObject("value").get("name").getAsString();
-		return new Node(cell, page, true, meta.get("id").getAsString(), icon.substring(icon.indexOf('.') + 1));
+		JsonObject value = meta.getAsJsonObject("icon").getAsJsonObject("value");
+		String icon = value.get("name").getAsString();
+		Integer model = null;
+		if (value.get("customModelData") instanceof JsonObject data && data.get("rangeDispatch") instanceof JsonArray range
+			&& !range.isEmpty()) {
+			model = range.get(0).getAsInt();
+		}
+		return new Node(cell, page, true, meta.get("id").getAsString(), icon.substring(icon.indexOf('.') + 1),
+			value.get("id").getAsString(), model);
 	}
 }

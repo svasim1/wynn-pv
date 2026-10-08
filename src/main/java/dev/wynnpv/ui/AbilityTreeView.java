@@ -1,12 +1,24 @@
 package dev.wynnpv.ui;
 
+import dev.wynnpv.WynnPv;
 import dev.wynnpv.api.AbilityTree;
 import dev.wynnpv.ui.theme.Ink;
 import dev.wynnpv.ui.theme.Page;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomModelData;
 
 /**
  * Draws an ability tree onto a page, inked like the in-game one with all pages below each other:
@@ -18,7 +30,14 @@ final class AbilityTreeView {
 	private static final int PAGE_GAP = 14;
 	private static final int PATH_TAKEN = Ink.TEXT;
 	private static final int PATH = 0xFFCDB487;
-	private static final int OUTLINE = 0xFF2A1A0C;
+	/** Untaken abilities are drawn in the colour of faint ink. */
+	private static final int UNTAKEN = 0xFFB89A68;
+	private static final int UNTAKEN_WASH = 0xA0EDDBB2;
+	private static final Set<String> TIERS = Set.of("nodeWhite", "nodeYellow", "nodePurple", "nodeBlue", "nodeRed");
+	/** Sprite sizes for 18 and 14 pixel cells. */
+	private static final Map<String, Integer> LARGE = Map.of("gem", 12, "spell", 14, "star", 16);
+	private static final Map<String, Integer> SMALL = Map.of("gem", 10, "spell", 12, "star", 12);
+	private static final Map<String, ItemStack> ITEMS = new HashMap<>();
 	private static final int PARCHMENT = 0xFFEDDBB2;
 
 	private final AbilityTree tree;
@@ -68,11 +87,12 @@ final class AbilityTreeView {
 			page.text(label, labelX, labelY, Ink.FADED);
 		}
 		AbilityTree.Node hovered = null;
+		boolean officialIcons = WynncraftPack.loaded();
 		for (AbilityTree.Node node : tree.nodes()) {
 			if (node.ability()) {
 				int x = left + (node.cell().x() - 1) * cell;
 				int y = top + rowTop(node.cell().y());
-				drawAbility(graphics, node, x, y);
+				drawAbility(graphics, node, x, y, officialIcons);
 				if (page.isMouseOver(x, y, x + cell, y + cell)) {
 					hovered = node;
 				}
@@ -105,23 +125,42 @@ final class AbilityTreeView {
 		}
 	}
 
-	private void drawAbility(GuiGraphics graphics, AbilityTree.Node node, int x, int y) {
-		boolean ultimate = node.style().startsWith("ultimate");
-		int size = cell - (ultimate ? 4 : 6);
-		int x0 = x + (cell - size) / 2;
-		int y0 = y + (cell - size) / 2;
-		int color = color(node.style());
-		if (tree.isTaken(node)) {
-			graphics.fill(x0, y0, x0 + size, y0 + size, OUTLINE);
-			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + size - 1, color);
-			// Light from the top left.
-			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + 2, 0x60FFFFFF);
-			graphics.fill(x0 + 1, y0 + size - 2, x0 + size - 1, y0 + size - 1, 0x40000000);
-		} else {
-			graphics.fill(x0, y0, x0 + size, y0 + size, PATH);
-			graphics.fill(x0 + 1, y0 + 1, x0 + size - 1, y0 + size - 1, 0xFFEADAB4);
-			graphics.fill(x0 + 3, y0 + 3, x0 + size - 3, y0 + size - 3, net.minecraft.util.ARGB.multiplyAlpha(color, 0.35f));
+	/**
+	 * Draws an ability: Wynncraft's own icon when its resource pack is loaded and the cell fits a
+	 * 16 pixel item, otherwise our pixel-art node in the tier's colour. Abilities not taken are only
+	 * outlined, or for Wynncraft's icons, faded under a parchment wash.
+	 */
+	private void drawAbility(GuiGraphics graphics, AbilityTree.Node node, int x, int y, boolean officialIcons) {
+		boolean taken = tree.isTaken(node);
+		ItemStack item = officialIcons && cell >= MAX_CELL ? item(node) : null;
+		if (item != null) {
+			int x0 = x + (cell - 16) / 2;
+			int y0 = y + (cell - 16) / 2;
+			graphics.renderItem(item, x0, y0);
+			if (!taken) {
+				graphics.fill(x0, y0, x0 + 16, y0 + 16, UNTAKEN_WASH);
+			}
+			return;
 		}
+		String kind = node.style().startsWith("ultimate") ? "star" : TIERS.contains(node.style()) ? "gem" : "spell";
+		int size = cell >= MAX_CELL ? LARGE.get(kind) : SMALL.get(kind);
+		String sprite = "tree/" + kind + (cell >= MAX_CELL ? "_large" : "_small") + (taken ? "" : "_empty");
+		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, WynnPv.id(sprite), x + (cell - size) / 2, y + (cell - size) / 2,
+			size, size, ARGB.opaque(taken ? color(node.style()) : UNTAKEN));
+	}
+
+	/** The item Wynncraft's resource pack draws this ability's icon on, or null when the API gave none. */
+	private ItemStack item(AbilityTree.Node node) {
+		if (node.item() == null || node.model() == null) {
+			return null;
+		}
+		return ITEMS.computeIfAbsent(node.item() + "#" + node.model(), key -> {
+			Item type = BuiltInRegistries.ITEM.getValue(Identifier.parse(node.item()));
+			ItemStack stack = new ItemStack(type);
+			stack.set(DataComponents.CUSTOM_MODEL_DATA,
+				new CustomModelData(List.of((float) node.model()), List.of(), List.of(), List.of()));
+			return stack;
+		});
 	}
 
 	/** Matches the colours of Wynncraft's node icons: white, yellow, purple, blue and red tiers. */

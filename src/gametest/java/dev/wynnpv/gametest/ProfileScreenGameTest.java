@@ -15,6 +15,9 @@ import org.lwjgl.glfw.GLFW;
 public class ProfileScreenGameTest implements FabricClientGameTest {
 	// muffinsko, a top player with a public profile: leaderboard places, a guild, former guilds and raids.
 	private static final String PLAYER = "24369ee1-3d07-43cc-a660-a6c34218cbc9";
+	// Salted's level 120 archer has a public ability tree; muffinsko hides theirs.
+	private static final String TREE_PLAYER = "1ed075fc-5aa9-42e0-a29f-640326c1d80c";
+	private static final String TREE_CHARACTER = "92ddbed6-cbab-49ac-bdb0-5385f4ceab91";
 	// fusianasan_ hides their stats, characters and online status.
 	private static final String RESTRICTED = "1c4246b0-2734-48d3-a9b9-7ca38e31e2a0";
 
@@ -40,7 +43,52 @@ public class ProfileScreenGameTest implements FabricClientGameTest {
 		}
 		hover(context, profileScreen);
 		restricted(context);
+		tree(context);
 		context.runOnClient(client -> client.setScreen(new TitleScreen()));
+	}
+
+	/** An ability tree with large node sprites, small ones on the smallest screen, and a hover. */
+	private static void tree(ClientGameTestContext context) {
+		ProfileScreen profileScreen = context.computeOnClient(client -> {
+			ProfileScreen screen = new ProfileScreen(TREE_PLAYER);
+			client.setScreen(screen);
+			return screen;
+		});
+		context.waitFor(client -> profileScreen.profile() != null, 20 * 30);
+		int[][] sizes = {{854, 480, 2}, {1280, 960, 4}, {1920, 1080, 3}};
+		for (int[] size : sizes) {
+			context.getInput().resizeWindow(size[0], size[1]);
+			context.runOnClient(client -> {
+				client.options.guiScale().set(size[2]);
+				client.resizeDisplay();
+				PlayerProfile profile = profileScreen.profile();
+				PlayerProfile.Character archer = profile.characters().stream()
+					.filter(c -> c.uuid().equals(TREE_CHARACTER)).findFirst().orElseThrow();
+				client.setScreen(new CharacterScreen(profileScreen, profile, archer));
+			});
+			context.getInput().setCursorPos(2, 2);
+			for (int i = 0; i < 3; i++) {
+				context.getInput().pressKey(GLFW.GLFW_KEY_RIGHT);
+			}
+			context.waitTicks(20 * 4);
+			String name = "tree-" + (size[0] / size[2]) + "x" + (size[1] / size[2]);
+			context.takeScreenshot(name);
+			context.getInput().setCursorPos(size[0] * 3 / 4, size[1] / 2);
+			context.getInput().scroll(-6);
+			context.getInput().setCursorPos(2, 2);
+			context.waitTicks(2);
+			context.takeScreenshot(name + "-scrolled");
+		}
+		// The first ability at 427x240: column 5, row 1.
+		context.getInput().resizeWindow(854, 480);
+		context.runOnClient(client -> {
+			client.options.guiScale().set(2);
+			client.resizeDisplay();
+		});
+		context.getInput().scroll(100);
+		context.getInput().setCursorPos(605, 152);
+		context.waitTicks(3);
+		context.takeScreenshot("tree-hover");
 	}
 
 	/** A player hiding their stats, characters and online status, at 427x240. */
