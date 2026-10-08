@@ -6,6 +6,7 @@ Run `python3 art/pixelart.py` to regenerate the textures, or add `--preview` to 
 previews to art/preview/.
 """
 import json
+import math
 import os
 import random
 import struct
@@ -470,71 +471,131 @@ def elements():
     return last
 
 
-# Ability tree nodes, grey so each is tinted in its tier's colour: a faceted gem for abilities, a
-# diamond for the class's spells and a star for ultimates. "_empty" versions are only outlined, for
-# abilities not taken. Two sizes: "large" for 18 pixel cells, "small" for the 14 pixel cells of small
-# screens.
-NODE_OUT = (0x2A, 0x1A, 0x0C)
+# The ability tree, carved into a dark slate like Wynncraft's own: notched rune stones with a glyph
+# that lights up in its tier's colour once the ability is taken, and a cyan glow around taken
+# runes. Two sizes: "large" for 18 pixel cells, "small" for the 14 pixel cells of small screens.
+SLATE_OUT = (0x10, 0x11, 0x15)
+SLATE = (0x22, 0x23, 0x2A)
+STONE_OUT = (0x12, 0x12, 0x17)
+STONE_HI = (0x4A, 0x4B, 0x57)
+STONE = (0x34, 0x35, 0x3F)
+STONE_D = (0x27, 0x28, 0x30)
+GLOW = (0x6C, 0xF0, 0xFF)
+GLOW_D = (0x1C, 0xA6, 0xC2)
+
+# Glyphs, white so they are tinted: lit in the tier's colour, or dark grey when not taken.
+GLYPHS = {
+    "large": {
+        "white": ["...X...", "..X.X..", ".X...X.", "X..X..X", "..X.X..", ".X...X.", "X.....X"],
+        "yellow": ["X..X..X", ".X.X.X.", "..XXX..", "XXX.XXX", "..XXX..", ".X.X.X.", "X..X..X"],
+        "purple": ["..XXX..", ".X...X.", "X......", "X......", "X......", ".X...X.", "..XXX.."],
+        "blue": [".XXXXX.", "X......", "X......", ".XXXXX.", "......X", "......X", ".XXXXX."],
+        "red": ["X..X..X", "X..X..X", "X..X..X", ".XXXXX.", "...X...", "...X...", "...X..."],
+        "spell": ["...X...", "..XXX..", ".XX.XX.", "XX.X.XX", ".XX.XX.", "..XXX..", "...X..."],
+        "ultimate": ["...X...", "...X...", ".XXXXX.", "XXX.XXX", ".XXXXX.", "...X...", "...X..."],
+    },
+    "small": {
+        "white": [".....", "..X..", ".X.X.", "X...X", "....."],
+        "yellow": ["X.X.X", ".XXX.", "XX.XX", ".XXX.", "X.X.X"],
+        "purple": [".XXX.", "X....", "X....", "X....", ".XXX."],
+        "blue": [".XXXX", "X....", ".XXX.", "....X", "XXXX."],
+        "red": ["X.X.X", "X.X.X", ".XXX.", "..X..", "..X.."],
+        "spell": ["..X..", ".XXX.", "XX.XX", ".XXX.", "..X.."],
+        "ultimate": ["..X..", ".XXX.", "XXXXX", ".XXX.", "..X.."],
+    },
+}
+# Rune sizes: plain runes, and the bigger studded runes of spells and ultimates.
+RUNES = {"large": {"rune": 16, "major": 18}, "small": {"rune": 12, "major": 14}}
 
 
-def node_shape(kind, size):
-    """True where the shape covers the pixel, in a size x size square."""
+def rune_mask(size, major):
+    """A round stone with a notched rim. Major runes have a smaller stone inside four 2x2 studs,
+    top, right, bottom and left, with a pixel of space between."""
     c = (size - 1) / 2
+    radius = c - (2.3 if major else 0.4)
+    notch = 0.5 if major else 0.7
+    mask = [[False] * size for _ in range(size)]
+    for y in range(size):
+        for x in range(size):
+            dx, dy = x - c, y - c
+            if math.hypot(dx, dy) <= radius - 0.6 + notch * math.cos(8 * math.atan2(dy, dx)):
+                mask[y][x] = True
+    if major:
+        mid = size // 2 - 1
+        for sx, sy in ((mid, 0), (size - 2, mid), (mid, size - 2), (0, mid)):
+            for y in (sy, sy + 1):
+                for x in (sx, sx + 1):
+                    mask[y][x] = True
+    return mask
 
-    def inside(x, y):
-        dx, dy = abs(x - c), abs(y - c)
-        if kind == "gem":
-            return dx + dy <= size * 0.62 and max(dx, dy) <= c
-        if kind == "spell":
-            return dx + dy <= c + 0.5
-        # star: two long diamonds crossing, so four points taper out from a solid middle
-        return dx + dy * 1.7 <= c + 0.6 or dy + dx * 1.7 <= c + 0.6
 
-    return [[inside(x, y) for x in range(size)] for y in range(size)]
+def edge_of(mask, x, y):
+    size = len(mask)
+    on = lambda i, j: 0 <= i < size and 0 <= j < size and mask[j][i]
+    return mask[y][x] and not (on(x - 1, y) and on(x + 1, y) and on(x, y - 1) and on(x, y + 1))
 
 
-def node_sprite(kind, size, empty):
-    mask = node_shape(kind, size)
+def rune_stone(size, major):
+    mask = rune_mask(size, major)
+    c = (size - 1) / 2
     p = canvas(size, size)
-    on = lambda x, y: 0 <= x < size and 0 <= y < size and mask[y][x]
-    c = (size - 1) / 2
     for y in range(size):
         for x in range(size):
             if not mask[y][x]:
                 continue
-            edge = not (on(x - 1, y) and on(x + 1, y) and on(x, y - 1) and on(x, y + 1))
-            if edge:
-                p[y][x] = NODE_OUT
-            elif empty:
-                p[y][x] = (0xED, 0xDB, 0xB2) if not (on(x - 2, y) and on(x + 2, y) and on(x, y - 2) and on(x, y + 2)) else None
-                if p[y][x] is not None:
-                    p[y][x] = (0xC0, 0xC0, 0xC0)
+            if edge_of(mask, x, y):
+                p[y][x] = STONE_OUT
             else:
-                # Grey tones, light from the top left; a bright facet across the upper left.
                 light = (x - c) + (y - c)
-                if light < -c * 0.6:
-                    p[y][x] = (0xFF, 0xFF, 0xFF)
-                elif light < 0:
-                    p[y][x] = (0xE0, 0xE0, 0xE0)
-                elif light < c * 0.6:
-                    p[y][x] = (0xC0, 0xC0, 0xC0)
-                else:
-                    p[y][x] = (0x96, 0x96, 0x96)
-    # A sparkle on taken nodes.
-    if not empty and size >= 12:
-        hx, hy = int(c) - 2, int(c) - 2
-        if mask[hy][hx]:
-            p[hy][hx] = (0xFF, 0xFF, 0xFF)
+                p[y][x] = STONE_HI if light < -c * 0.9 else STONE if light < c * 0.5 else STONE_D
     return p
 
 
-def tree_nodes():
+def rune_glow(size, major):
+    """Drawn over a taken rune: its rim in bright cyan, with a softer glow just outside."""
+    mask = rune_mask(size, major)
+    p = canvas(size + 2, size + 2)
+    for y in range(size):
+        for x in range(size):
+            if edge_of(mask, x, y):
+                p[y + 1][x + 1] = GLOW
+    for y in range(size + 2):
+        for x in range(size + 2):
+            if p[y][x] is None and any(0 <= x + dx < size + 2 and 0 <= y + dy < size + 2 and p[y + dy][x + dx] == GLOW
+                                       for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                inside = 0 <= x - 1 < size and 0 <= y - 1 < size and mask[y - 1][x - 1]
+                if not inside:
+                    p[y][x] = GLOW_D + (150,)
+    return p
+
+
+def slate():
+    """The tablet the tree is carved into, tiling to any size."""
+    size, border = 32, 4
+    rng = random.Random(17)
+    p = canvas(size, size)
+    speckle(p, rng, SLATE, [((0x1D, 0x1E, 0x24), 0.10), ((0x29, 0x2A, 0x32), 0.06)])
+    for i in range(size):
+        p[0][i] = p[size - 1][i] = p[i][0] = p[i][size - 1] = SLATE_OUT
+    for i in range(1, size - 1):
+        p[1][i] = (0x30, 0x31, 0x3A)
+        p[i][1] = (0x30, 0x31, 0x3A)
+        p[size - 2][i] = (0x18, 0x19, 0x1E)
+        p[i][size - 2] = (0x18, 0x19, 0x1E)
+    p[0][0] = p[0][size - 1] = p[size - 1][0] = p[size - 1][size - 1] = None
+    return nine_slice("tree/slate", p, border, border, border, border)
+
+
+def tree_runes():
+    slate()
     last = None
-    for scale, sizes in (("large", {"gem": 12, "spell": 14, "star": 16}), ("small", {"gem": 10, "spell": 12, "star": 12})):
-        for kind, size in sizes.items():
-            for empty in (False, True):
-                name = f"tree/{kind}_{scale}" + ("_empty" if empty else "")
-                last = plain(name, node_sprite(kind, size, empty))
+    for scale in ("large", "small"):
+        for kind, size in RUNES[scale].items():
+            major = kind == "major"
+            plain(f"tree/{kind}_{scale}", rune_stone(size, major))
+            last = plain(f"tree/{kind}_{scale}_glow", rune_glow(size, major))
+        for tier, rows in GLYPHS[scale].items():
+            plain(f"tree/glyph_{tier}_{scale}", [[(0xFF,) * 3 if ch == "X" else None for ch in row] for row in rows])
     return last
 
 
@@ -552,7 +613,7 @@ def main():
         "elements": elements(),
         "pin_gold": pin_gold(),
         "arrows": arrows(),
-        "tree_nodes": tree_nodes(),
+        "tree_runes": tree_runes(),
     }
     if "--preview" in sys.argv:
         for name, pixels in sprites.items():

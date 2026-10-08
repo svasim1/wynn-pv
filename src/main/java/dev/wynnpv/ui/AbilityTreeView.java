@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.component.DataComponents;
@@ -28,17 +27,23 @@ import net.minecraft.world.item.component.CustomModelData;
 final class AbilityTreeView {
 	private static final int MAX_CELL = 18;
 	private static final int PAGE_GAP = 14;
-	private static final int PATH_TAKEN = Ink.TEXT;
-	private static final int PATH = 0xFFCDB487;
-	/** Untaken abilities are drawn in the colour of faint ink. */
-	private static final int UNTAKEN = 0xFFB89A68;
-	private static final int UNTAKEN_WASH = 0xA0EDDBB2;
-	private static final Set<String> TIERS = Set.of("nodeWhite", "nodeYellow", "nodePurple", "nodeBlue", "nodeRed");
-	/** Sprite sizes for 18 and 14 pixel cells. */
-	private static final Map<String, Integer> LARGE = Map.of("gem", 12, "spell", 14, "star", 16);
-	private static final Map<String, Integer> SMALL = Map.of("gem", 10, "spell", 12, "star", 12);
+	// Carved into dark slate like Wynncraft's own tree: dark stone paths, and taken paths glowing cyan.
+	private static final Identifier SLATE = WynnPv.id("tree/slate");
+	private static final int SLATE_MARGIN = 6;
+	private static final int PATH = 0xFF3C3D47;
+	private static final int PATH_TAKEN = 0xFF6CF0FF;
+	private static final int PATH_GLOW = 0xFF1CA6C2;
+	private static final int LABEL = 0xFF8A8C99;
+	private static final int LABEL_PATCH = 0xFF22232A;
+	/** The glyph of an untaken rune stays dark; official icons fade under a dark wash instead. */
+	private static final int GLYPH_UNLIT = 0xFF5C5D6A;
+	private static final int UNTAKEN_WASH = 0xB0222329;
+	private static final Map<String, String> TIERS = Map.of(
+		"nodeWhite", "white", "nodeYellow", "yellow", "nodePurple", "purple", "nodeBlue", "blue", "nodeRed", "red");
+	/** The colour each glyph lights up in. */
+	private static final Map<String, Integer> GLYPH_COLORS = Map.of("white", 0xFFF4F4F4, "yellow", 0xFFFFC935,
+		"purple", 0xFFE05CD8, "blue", 0xFF5FA8FF, "red", 0xFFFF4A4A, "spell", 0xFFFF4A4A, "ultimate", 0xFFFFB020);
 	private static final Map<String, ItemStack> ITEMS = new HashMap<>();
-	private static final int PARCHMENT = 0xFFEDDBB2;
 
 	private final AbilityTree tree;
 
@@ -71,20 +76,22 @@ final class AbilityTreeView {
 		int width = AbilityTree.COLUMNS * cell;
 		int left = page.left + (page.width - width) / 2;
 		int top = page.y;
+		int height = rowTop(tree.rows()) + cell + SLATE_MARGIN;
+		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLATE, left - SLATE_MARGIN, top, width + 2 * SLATE_MARGIN, height);
 		for (AbilityTree.Node node : tree.nodes()) {
 			if (!node.ability()) {
 				drawConnector(graphics, node, left, top);
 			}
 		}
-		// Page numbers sit on a patch of clean parchment over the paths running past them.
+		// Page numbers sit on a patch of clean slate over the paths running past them.
 		for (int p = 1; p <= pages(); p++) {
 			int labelY = top + rowTop((p - 1) * AbilityTree.ROWS_PER_PAGE + 1) - PAGE_GAP + 3;
 			String label = "Page " + p;
 			int labelX = page.left + (page.width - page.font.width(label)) / 2;
 			if (page.fullyVisible(labelY, 8)) {
-				graphics.fill(labelX - 3, labelY - 2, labelX + page.font.width(label) + 3, labelY + 9, PARCHMENT);
+				graphics.fill(labelX - 3, labelY - 2, labelX + page.font.width(label) + 3, labelY + 9, LABEL_PATCH);
 			}
-			page.text(label, labelX, labelY, Ink.FADED);
+			page.text(label, labelX, labelY, LABEL);
 		}
 		AbilityTree.Node hovered = null;
 		boolean officialIcons = WynncraftPack.loaded();
@@ -101,7 +108,7 @@ final class AbilityTreeView {
 		if (hovered != null) {
 			graphics.setComponentTooltipForNextFrame(page.font, tooltip(hovered), page.mouseX(), page.mouseY(), Ink.TOOLTIP);
 		}
-		page.gap(rowTop(tree.rows()) + cell);
+		page.gap(height);
 	}
 
 	private void drawConnector(GuiGraphics graphics, AbilityTree.Node node, int left, int top) {
@@ -115,12 +122,18 @@ final class AbilityTreeView {
 			if (!node.connects(direction)) {
 				continue;
 			}
-			int color = tree.isTakenTowards(node, direction) ? PATH_TAKEN : PATH;
-			switch (direction) {
-				case UP -> graphics.fill(cx - 1, y, cx + 1, cy + 1, color);
-				case DOWN -> graphics.fill(cx - 1, cy - 1, cx + 1, y + cell + (lastRowOfPage ? PAGE_GAP : 0), color);
-				case LEFT -> graphics.fill(x, cy - 1, cx + 1, cy + 1, color);
-				case RIGHT -> graphics.fill(cx - 1, cy - 1, x + cell, cy + 1, color);
+			boolean taken = tree.isTakenTowards(node, direction);
+			// A taken path is a bright core with a darker glow a pixel either side.
+			int glow = taken ? 1 : 0;
+			for (int pass = taken ? 0 : 1; pass < 2; pass++) {
+				int color = pass == 0 ? PATH_GLOW : taken ? PATH_TAKEN : PATH;
+				int w = pass == 0 ? 1 + glow : 1;
+				switch (direction) {
+					case UP -> graphics.fill(cx - w, y, cx + w, cy + 1, color);
+					case DOWN -> graphics.fill(cx - w, cy - 1, cx + w, y + cell + (lastRowOfPage ? PAGE_GAP : 0), color);
+					case LEFT -> graphics.fill(x, cy - w, cx + 1, cy + w, color);
+					case RIGHT -> graphics.fill(cx - 1, cy - w, x + cell, cy + w, color);
+				}
 			}
 		}
 	}
@@ -142,11 +155,23 @@ final class AbilityTreeView {
 			}
 			return;
 		}
-		String kind = node.style().startsWith("ultimate") ? "star" : TIERS.contains(node.style()) ? "gem" : "spell";
-		int size = cell >= MAX_CELL ? LARGE.get(kind) : SMALL.get(kind);
-		String sprite = "tree/" + kind + (cell >= MAX_CELL ? "_large" : "_small") + (taken ? "" : "_empty");
-		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, WynnPv.id(sprite), x + (cell - size) / 2, y + (cell - size) / 2,
-			size, size, ARGB.opaque(taken ? color(node.style()) : UNTAKEN));
+		// A rune stone, with a glyph for its tier; spells and ultimates get the bigger studded stone.
+		boolean large = cell >= MAX_CELL;
+		String glyph = node.style().startsWith("ultimate") ? "ultimate" : TIERS.getOrDefault(node.style(), "spell");
+		boolean major = glyph.equals("spell") || glyph.equals("ultimate");
+		int size = large ? (major ? 18 : 16) : (major ? 14 : 12);
+		String scale = large ? "_large" : "_small";
+		int x0 = x + (cell - size) / 2;
+		int y0 = y + (cell - size) / 2;
+		String stone = "tree/" + (major ? "major" : "rune") + scale;
+		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, WynnPv.id(stone), x0, y0, size, size);
+		if (taken) {
+			graphics.blitSprite(RenderPipelines.GUI_TEXTURED, WynnPv.id(stone + "_glow"), x0 - 1, y0 - 1, size + 2, size + 2);
+		}
+		int glyphSize = large ? 7 : 5;
+		int g = (size - glyphSize) / 2;
+		graphics.blitSprite(RenderPipelines.GUI_TEXTURED, WynnPv.id("tree/glyph_" + glyph + scale), x0 + g, y0 + g,
+			glyphSize, glyphSize, taken ? GLYPH_COLORS.get(glyph) : GLYPH_UNLIT);
 	}
 
 	/** The item Wynncraft's resource pack draws this ability's icon on, or null when the API gave none. */
@@ -161,19 +186,6 @@ final class AbilityTreeView {
 				new CustomModelData(List.of((float) node.model()), List.of(), List.of(), List.of()));
 			return stack;
 		});
-	}
-
-	/** Matches the colours of Wynncraft's node icons: white, yellow, purple, blue and red tiers. */
-	private static int color(String style) {
-		return switch (style) {
-			case "nodeWhite" -> 0xFFF4F0E6;
-			case "nodeYellow" -> 0xFFE8BE3A;
-			case "nodePurple" -> 0xFFA45ED8;
-			case "nodeBlue" -> 0xFF4C92E0;
-			case "nodeRed" -> 0xFFD84A4A;
-			// Ultimates, archetype starts and the class's own spells.
-			default -> style.startsWith("ultimate") ? 0xFFFF9A1A : 0xFF5EBE7A;
-		};
 	}
 
 	private List<Component> tooltip(AbilityTree.Node node) {
